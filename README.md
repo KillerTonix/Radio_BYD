@@ -12,7 +12,7 @@ Internet radio for the BYD Yuan Plus / Atto 3 (DiLink, Android 10), controlled f
 - **By countries:** every country from the free [Radio Browser](https://www.radio-browser.info) directory, with Armenia, Russia, Germany, USA, Georgia and France pinned first. Tap a tile for its stations, or its play button to start the most popular one.
 - **Search:** station names worldwide, plus matching countries.
 - **Favorites:** heart any station (or local track) from a list or the mini player.
-- **Local & USB:** music the media scanner finds on the car and on USB sticks, plus a "Choose folder" fallback.
+- **Local & USB:** music the media scanner finds on the car and on USB sticks.
 - Next / previous (on screen or on the wheel) steps through whichever list you started playing from.
 
 ## How wheel buttons reach the app

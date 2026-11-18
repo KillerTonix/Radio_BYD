@@ -1,7 +1,6 @@
 package dev.wheelradio
 
 import android.content.ComponentName
-import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
@@ -29,19 +28,7 @@ class MainActivity : ComponentActivity() {
                 onPlayPause = { controller?.let { if (it.isPlaying) it.pause() else it.play() } },
                 onNext = { controller?.seekToNext() },
                 onPrevious = { controller?.seekToPrevious() },
-                onPickFolder = { folderPicker.launch(null) },
             )
-        }
-    }
-
-    private val folderPicker = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            runCatching {
-                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            model.setMusicFolder(uri)
         }
     }
 

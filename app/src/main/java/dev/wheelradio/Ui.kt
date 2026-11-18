@@ -69,7 +69,6 @@ fun WheelRadioApp(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
-    onPickFolder: () -> Unit,
 ) {
     MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Bg, surface = Surface1)) {
         BackHandler(enabled = model.openCountry != null) { model.openCountry = null }
@@ -97,7 +96,7 @@ fun WheelRadioApp(
                 when (model.tab) {
                     AppTab.COUNTRIES -> CountriesTab(model)
                     AppTab.FAVORITES -> FavoritesTab(model)
-                    AppTab.LOCAL -> LocalTab(model, onPickFolder)
+                    AppTab.LOCAL -> LocalTab(model)
                 }
             }
             MiniPlayer(model, onPlayPause, onNext, onPrevious)
@@ -245,7 +244,7 @@ private fun FavoritesTab(model: AppModel) {
 // ---------- Local & USB ----------
 
 @Composable
-private fun LocalTab(model: AppModel, onPickFolder: () -> Unit) {
+private fun LocalTab(model: AppModel) {
     val context = LocalContext.current
     val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO
     else Manifest.permission.READ_EXTERNAL_STORAGE
@@ -268,7 +267,6 @@ private fun LocalTab(model: AppModel, onPickFolder: () -> Unit) {
                 Icon(Icons.Filled.Refresh, null); Spacer(Modifier.width(8.dp))
                 Text(if (granted) "Rescan device & USB" else "Allow access to music", fontSize = 17.sp)
             }
-            OutlinedButton(onClick = onPickFolder) { Text("Choose folder…", fontSize = 17.sp) }
         }
         when {
             model.localScanning -> Centered { CircularProgressIndicator() }
@@ -276,7 +274,7 @@ private fun LocalTab(model: AppModel, onPickFolder: () -> Unit) {
                 model, files,
                 if (!granted && model.musicFolder == null)
                     "Allow access so the app can find music on the car and on USB sticks."
-                else "No audio files found. Plug in a USB stick and tap Rescan, or choose a folder.",
+                else "No audio files found. Plug in a USB stick and tap Rescan.",
             )
         }
     }
