@@ -44,6 +44,8 @@ class MainActivity : ComponentActivity() {
         model.rememberQueue(list, index)
         controller?.run {
             setMediaItems(list.map { it.toMediaItem() }, index, C.TIME_UNSET)
+            // Shuffle is only for local / USB songs: radio always plays in list order.
+            if (list.any { !it.local }) shuffleModeEnabled = false
             prepare()
             play()
         }
@@ -81,6 +83,7 @@ class MainActivity : ComponentActivity() {
             isPlaying = p.isPlaying,
             buffering = p.playbackState == Player.STATE_BUFFERING,
             shuffle = p.shuffleModeEnabled,
+            canShuffle = station?.local == true,
         )
     }
 

@@ -42,7 +42,8 @@ class RadioService : MediaSessionService() {
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
         exo.repeatMode = Player.REPEAT_MODE_ALL
-        exo.shuffleModeEnabled = repo.shuffle
+        // Shuffle is only for local / USB songs, never for radio.
+        exo.shuffleModeEnabled = repo.shuffle && queue.all { it.local }
         exo.setMediaItems(
             queue.map { it.toMediaItem() },
             repo.lastIndex.coerceIn(0, (queue.size - 1).coerceAtLeast(0)),

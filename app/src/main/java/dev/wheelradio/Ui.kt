@@ -85,8 +85,9 @@ fun WheelRadioApp(
                         onClick = { model.tab = t },
                         text = {
                             Text(
-                                t.title.uppercase(), fontSize = 20.sp,
+                                t.title.uppercase(), fontSize = 18.sp,
                                 color = if (model.tab == t) Accent else TextDim,
+                                maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
                             )
                         },
                     )
@@ -239,9 +240,11 @@ private fun FavoritesTab(model: AppModel) {
     val q = model.query.trim()
     val list = if (q.isEmpty()) model.favorites else model.favorites.filter { it.name.contains(q, true) }
     Column(Modifier.fillMaxSize()) {
-        if (list.size > 1) Button(onClick = { model.playShuffled(list) }, modifier = Modifier.padding(vertical = 12.dp)) {
+        // Shuffle only applies to songs, so offer it for favorite local / USB songs only.
+        val songs = list.filter { it.local }
+        if (songs.size > 1) Button(onClick = { model.playShuffled(songs) }, modifier = Modifier.padding(vertical = 12.dp)) {
             Icon(PlayerIcons.Shuffle, null); Spacer(Modifier.width(8.dp))
-            Text("Shuffle favorites", fontSize = 17.sp)
+            Text("Shuffle favorite songs (${songs.size})", fontSize = 17.sp)
         }
         StationList(model, list, "No favorites yet. Tap the heart next to a station to add it here.")
     }
@@ -384,13 +387,15 @@ private fun MiniPlayer(model: AppModel, onPlayPause: () -> Unit, onNext: () -> U
             val sub = if (now.buffering) "Connecting…" else now.nowPlaying
             if (sub.isNotBlank()) Text(sub, fontSize = 16.sp, color = TextDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        IconButton(onClick = { model.setShuffle(!now.shuffle) }, modifier = Modifier.size(56.dp)) {
-            Icon(
-                PlayerIcons.Shuffle, if (now.shuffle) "Shuffle on" else "Shuffle off",
-                tint = if (now.shuffle) Accent else TextDim, modifier = Modifier.size(30.dp),
-            )
+        if (now.canShuffle) {
+            IconButton(onClick = { model.setShuffle(!now.shuffle) }, modifier = Modifier.size(56.dp)) {
+                Icon(
+                    PlayerIcons.Shuffle, if (now.shuffle) "Shuffle on" else "Shuffle off",
+                    tint = if (now.shuffle) Accent else TextDim, modifier = Modifier.size(30.dp),
+                )
+            }
+            Spacer(Modifier.width(4.dp))
         }
-        Spacer(Modifier.width(4.dp))
         RoundIconButton(PlayerIcons.Previous, "Previous", onPrevious, size = 56, filled = false)
         Spacer(Modifier.width(8.dp))
         RoundIconButton(

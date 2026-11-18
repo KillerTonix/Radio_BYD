@@ -22,6 +22,7 @@ data class NowPlaying(
     val isPlaying: Boolean = false,
     val buffering: Boolean = false,
     val shuffle: Boolean = false,
+    val canShuffle: Boolean = false,
 )
 
 /** Screen state. Lives as long as the activity; all network / disk work runs on Dispatchers.IO. */
