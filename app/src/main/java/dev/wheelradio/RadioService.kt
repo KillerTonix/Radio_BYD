@@ -12,13 +12,13 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 
 /**
- * Plays the stations as one looping playlist inside a MediaSession.
- * Route 1 for wheel keys: standard Android media buttons -> MediaSession -> player.seekToNext()/Previous().
- * Route 2: BYD's APP_REV_DATA broadcast (BydWheelKeyReceiver).
- * Volume: the wheel volume buttons change the car's media volume directly; we play as USAGE_MEDIA,
- * so no app code is needed for volume.
+ * Plays the current list (a country's stations, favorites, or local files) in a loop inside a MediaSession.
+ * Wheel keys reach it three ways (see README): MediaSession media buttons, the focused activity,
+ * and BYD's APP_REV_DATA broadcast. Volume is handled by the car itself.
  */
 class RadioService : MediaSessionService() {
     private var session: MediaSession? = null
@@ -29,7 +29,7 @@ class RadioService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         val repo = StationRepository(this)
-        val stations = repo.load()
+        val queue = repo.queue
 
         val exo = ExoPlayer.Builder(this)
             .setAudioAttributes(
@@ -43,8 +43,8 @@ class RadioService : MediaSessionService() {
             .build()
         exo.repeatMode = Player.REPEAT_MODE_ALL
         exo.setMediaItems(
-            stations.map { it.toMediaItem() },
-            repo.lastIndex.coerceIn(0, (stations.size - 1).coerceAtLeast(0)),
+            queue.map { it.toMediaItem() },
+            repo.lastIndex.coerceIn(0, (queue.size - 1).coerceAtLeast(0)),
             C.TIME_UNSET
         )
         exo.addListener(object : Player.Listener {
@@ -54,10 +54,15 @@ class RadioService : MediaSessionService() {
             }
             override fun onPlayerError(error: PlaybackException) {
                 KeyLog.add("Player", "error: ${error.errorCodeName}")
-                // Mobile data in a moving car drops out; retry a few times with backoff.
-                if (retries < 5) {
+                if (retries < 3) {
+                    // Mobile data in a moving car drops out; retry with backoff.
                     retries++
                     handler.postDelayed({ exo.prepare() }, 2_000L * retries)
+                } else if (exo.mediaItemCount > 1) {
+                    // Station looks dead: move on so the driver isn't left with silence.
+                    retries = 0
+                    exo.seekToNextMediaItem()
+                    exo.prepare()
                 }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -65,7 +70,7 @@ class RadioService : MediaSessionService() {
             }
         })
         exo.prepare()
-        exo.playWhenReady = true
+        exo.playWhenReady = true // resume the last station when the app starts, like a car radio
 
         val player = StationSwitchingPlayer(exo)
         val openApp = PendingIntent.getActivity(
@@ -74,6 +79,19 @@ class RadioService : MediaSessionService() {
         )
         session = MediaSession.Builder(this, player)
             .setSessionActivity(openApp)
+            .setCallback(object : MediaSession.Callback {
+                // Items sent from the UI arrive without their URI; restore it from requestMetadata.
+                override fun onAddMediaItems(
+                    mediaSession: MediaSession,
+                    controller: MediaSession.ControllerInfo,
+                    mediaItems: MutableList<MediaItem>,
+                ): ListenableFuture<MutableList<MediaItem>> = Futures.immediateFuture(
+                    mediaItems.map { item ->
+                        val uri = item.requestMetadata.mediaUri ?: item.localConfiguration?.uri
+                        if (uri == null) item else item.buildUpon().setUri(uri).build()
+                    }.toMutableList()
+                )
+            })
             .build()
 
         bydReceiver = BydWheelKeyReceiver { player.perform(it) }

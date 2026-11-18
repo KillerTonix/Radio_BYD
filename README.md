@@ -7,6 +7,14 @@ Internet radio for the BYD Yuan Plus / Atto 3 (DiLink, Android 10), controlled f
 | Next / Previous | Switch to the next / previous station (loops around) |
 | Volume + / − | Changes the car's media volume (handled by the car; the app plays as normal media audio) |
 
+## Features
+
+- **By countries:** every country from the free [Radio Browser](https://www.radio-browser.info) directory, with Armenia, Russia, Germany, USA, Georgia and France pinned first. Tap a tile for its stations, or its play button to start the most popular one.
+- **Search:** station names worldwide, plus matching countries.
+- **Favorites:** heart any station (or local track) from a list or the mini player.
+- **Local & USB:** music the media scanner finds on the car and on USB sticks, plus a "Choose folder" fallback.
+- Next / previous (on screen or on the wheel) steps through whichever list you started playing from.
+
 ## How wheel buttons reach the app
 
 BYD units don't all route wheel keys the same way, so the app listens on three routes at once and de-duplicates presses (400 ms):
@@ -29,12 +37,15 @@ Newer DiLink firmware blocks APK installs from USB by default. Owners enable ADB
 
 ## Stations
 
-Edit `app/src/main/assets/stations.json`. Planned: in-app search through the free Radio Browser API.
+`app/src/main/assets/stations.json` is only the starter list for the very first launch.
 
 ## Code map
 
 - `RadioService.kt` – ExoPlayer + MediaSession, looping station playlist, reconnect on network drops
 - `StationSwitchingPlayer.kt` – makes next/previous always switch station, debounces duplicate presses
 - `BydWheelKeyReceiver.kt` – BYD `APP_REV_DATA` decoder
-- `MainActivity.kt` – landscape UI, foreground key handling, key log
+- `MainActivity.kt` – media controller, foreground key handling
+- `Ui.kt` / `AppModel.kt` – screens (tabs, country grid, lists, mini player, key log) and their state
+- `RadioBrowser.kt` – station directory client
+- `LocalMusic.kt` – device / USB / folder music scanning
 - `KeyLog.kt` – diagnostics (also in logcat, tag `WheelRadio`)
