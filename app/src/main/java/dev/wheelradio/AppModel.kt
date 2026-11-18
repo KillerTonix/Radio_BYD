@@ -71,7 +71,14 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
         countriesLoading = true
         countriesError = null
         scope.launch {
-            runCatching { withContext(Dispatchers.IO) { RadioBrowser.countries() } }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    RadioBrowser.countries().map { c ->
+                        val extra = CuratedStations.forCountry(appContext, c.code).size
+                        if (extra > 0) c.copy(stationCount = c.stationCount + extra) else c
+                    }
+                }
+            }
                 .onSuccess { countries = it }
                 .onFailure { countriesError = "Couldn't load countries. Check the internet connection." }
             countriesLoading = false
@@ -84,8 +91,12 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
         countryError = null
         countryLoading = true
         scope.launch {
-            runCatching { withContext(Dispatchers.IO) { RadioBrowser.stationsByCountry(country.code) } }
-                .onSuccess { if (openCountry == country) countryStations = it }
+            runCatching { withContext(Dispatchers.IO) { stationsFor(country.code) } }
+                .onSuccess { list ->
+                    if (openCountry == country) countryStations = list
+                    // Show the real number once curated + directory stations are merged.
+                    countries = countries.map { if (it.code == country.code) it.copy(stationCount = list.size) else it }
+                }
                 .onFailure { countryError = "Couldn't load stations." }
             countryLoading = false
         }
@@ -94,9 +105,17 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
     /** Play button on a country tile: start its most popular station, with the whole country as the queue. */
     fun playCountry(country: Country) {
         scope.launch {
-            runCatching { withContext(Dispatchers.IO) { RadioBrowser.stationsByCountry(country.code) } }
+            runCatching { withContext(Dispatchers.IO) { stationsFor(country.code) } }
                 .onSuccess { if (it.isNotEmpty()) playList(it, 0) }
         }
+    }
+
+    /** Curated stations first, then the directory; curated alone still works when the directory is down. */
+    private fun stationsFor(code: String): List<Station> {
+        val curated = CuratedStations.forCountry(appContext, code)
+        val directory = runCatching { RadioBrowser.stationsByCountry(code) }
+        if (curated.isEmpty()) return directory.getOrThrow()
+        return CuratedStations.merge(curated, directory.getOrDefault(emptyList()))
     }
 
     fun updateQuery(q: String) {

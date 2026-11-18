@@ -1,0 +1,324 @@
+[
+ {
+  "id": "am:00",
+  "name": "Հանրային ռադիո",
+  "url": "https://eu1.stream4cast.com/proxy/publicra/stream/;stream.mp3",
+  "favicon": "https://radio.armblog.net/hanrayin.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:01",
+  "name": "Ավտոռադիո",
+  "url": "https://de.auroramedia.am/autoradio.mp3",
+  "favicon": "https://radio.armblog.net/autoradio.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:02",
+  "name": "Իմ Ռադիո",
+  "url": "https://eu1.stream4cast.com/proxy/aamiry02/stream",
+  "favicon": "https://radio.armblog.net/im_radio.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:03",
+  "name": "Լավ Ռադիո Mix",
+  "url": "https://eu.stream4cast.com/proxy/lavradiomix/stream",
+  "favicon": "https://radio.armblog.net/lav_radio_mix.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:04",
+  "name": "Լավ Ռադիո",
+  "url": "https://eu.stream4cast.com/proxy/lavradio/stream",
+  "favicon": "https://radio.armblog.net/lav_radio.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:05",
+  "name": "Լրատվական ռադիո",
+  "url": "http://212.34.233.78:8000/live",
+  "favicon": "https://radio.armblog.net/lratvakan.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:06",
+  "name": "Պաշտէ",
+  "url": "https://streams.radio.co/sa0bf8ec29/listen",
+  "favicon": "https://radio.armblog.net/pashte.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:07",
+  "name": "Ռադիո Ազալիա",
+  "url": "https://stream-153.zeno.fm/s865660v7hhvv",
+  "favicon": "https://radio.armblog.net/azalia.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:08",
+  "name": "Ռադիո Արևիկ",
+  "url": "https://eu1.stream4cast.com/proxy/aamiryan/stream",
+  "favicon": "https://radio.armblog.net/arevik.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:09",
+  "name": "Ռադիո Ավրորա",
+  "url": "https://de.auroramedia.am/aurora.mp3",
+  "favicon": "https://radio.armblog.net/aurora.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:10",
+  "name": "Երիտասարդության ձայնը",
+  "url": "http://65.108.98.93:8123/stream?1734367162857",
+  "favicon": "https://radio.armblog.net/yerit_dzayn.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:11",
+  "name": "Ռադիո Երևան",
+  "url": "https://eu1.stream4cast.com/proxy/arradioi/stream",
+  "favicon": "https://radio.armblog.net/yerevan.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:12",
+  "name": "Ռադիո Խաղաղություն",
+  "url": "https://listen6.myradio24.com/serega1975",
+  "favicon": "https://radio.armblog.net/xaxaxutyun.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:13",
+  "name": "Ռադիո Հայ",
+  "url": "https://audio.cloudrad.io/2b1dbf78/live",
+  "favicon": "https://radio.armblog.net/hay.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:14",
+  "name": "Ռադիո Հայրենիք",
+  "url": "https://streaming.radio.co/sb64369622/listen",
+  "favicon": "https://radio.armblog.net/hayrenik.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:15",
+  "name": "Ռադիո Հեղափոխական",
+  "url": "https://237.185.153.160.host.secureserver.net/proxy/radioyan2/stream",
+  "favicon": "https://radio.armblog.net/revolutionary.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:16",
+  "name": "Ռադիո Ջազ",
+  "url": "http://am.radioaurora.am:8010/jz",
+  "favicon": "https://radio.armblog.net/jazz.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:17",
+  "name": "Ռադիո Մարիամ",
+  "url": "https://live.radiomariam.am/RadioMariam",
+  "favicon": "https://radio.armblog.net/mariam.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:18",
+  "name": "Ռադիո Մարշալ",
+  "url": "http://eu.stream4cast.com:8030/;stream.mp3",
+  "favicon": "https://radio.armblog.net/marshal.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:19",
+  "name": "Ռադիո Մշակույթ",
+  "url": "https://eu1.stream4cast.com/proxy/aamiry01/stream",
+  "favicon": "https://radio.armblog.net/mshakuyt.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:20",
+  "name": "Ռադիո Յան",
+  "url": "https://237.185.153.160.host.secureserver.net/proxy/radioyan1/stream",
+  "favicon": "https://radio.armblog.net/yan.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:21",
+  "name": "Ռադիո Շանսոն",
+  "url": "https://chanson.hostingradio.ru:8041/chanson128.mp3",
+  "favicon": "https://radio.armblog.net/shanson.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:22",
+  "name": "Ռադիո Ջան",
+  "url": "http://s7.voscast.com:10258/radiojan",
+  "favicon": "https://radio.armblog.net/jan.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:23",
+  "name": "Ռադիո Ջան USA",
+  "url": "https://s4.voscast.com:8865/stream?1734367587939",
+  "favicon": "https://radio.armblog.net/jan_usa.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:24",
+  "name": "Ռադիո Վան",
+  "url": "https://radiovan.webcaramba.com/radiovan160.aacp",
+  "favicon": "https://radio.armblog.net/van.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:25",
+  "name": "Ռադիո Վեմ",
+  "url": "https://eu1.stream4cast.com/proxy/vemradio/stream",
+  "favicon": "https://radio.armblog.net/vem.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:26",
+  "name": "Ռադիո Arev",
+  "url": "https://cast6.asurahosting.com/proxy/radioare/stream?1734368079092",
+  "favicon": "https://radio.armblog.net/arev.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:27",
+  "name": "Ռադիո AYK",
+  "url": "https://listen.streamaudio.co/proxy/radioayk/stream",
+  "favicon": "https://radio.armblog.net/ayk.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:28",
+  "name": "Ռադիո EuropaPlus",
+  "url": "https://ep256.hostingradio.ru:8052/europaplus256.mp3",
+  "favicon": "https://radio.armblog.net/europa_plus.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:29",
+  "name": "Ռադիո Kiss FM",
+  "url": "https://de.auroramedia.am/kissfm.mp3",
+  "favicon": "https://radio.armblog.net/kiss.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:30",
+  "name": "Ռադիո Yeraz",
+  "url": "https://streaming05.liveboxstream.uk/proxy/radioye3/stream?1734368159687",
+  "favicon": "https://radio.armblog.net/yeraz.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:31",
+  "name": "Ռադիո Ֆամա",
+  "url": "http://eu.stream4cast.com:8036/stream",
+  "favicon": "https://radio.armblog.net/fama.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:32",
+  "name": "Ռադիո 105.5",
+  "url": "https://audio.cloudrad.io/3745421d/live?ver=568694",
+  "favicon": "https://radio.armblog.net/fm1055.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:33",
+  "name": "Armenian Gospel Radio",
+  "url": "https://s8.myradiostream.com/:15554/listen.mp3",
+  "favicon": "https://radio.armblog.net/gospel.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:34",
+  "name": "Armenie",
+  "url": "http://direct.radioarmenie.com:9029/stream",
+  "favicon": "https://radio.armblog.net/armenie.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:35",
+  "name": "Ayp-FM",
+  "url": "https://stric6.streamakaci.com/radioayp.mp3",
+  "favicon": "https://radio.armblog.net/ayp.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:36",
+  "name": "KavkazFM",
+  "url": "https://kavkazhit.hostingradio.ru:8017/kavkazhit96.mp3",
+  "favicon": "https://radio.armblog.net/kavkaz.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:37",
+  "name": "MFM Music Radio",
+  "url": "https://eu.stream4cast.com/proxy/mfmradio/stream",
+  "favicon": "https://radio.armblog.net/mfm.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:38",
+  "name": "Radio Energy",
+  "url": "https://eu.stream4cast.com/proxy/energyfm/stream",
+  "favicon": "https://radio.armblog.net/energy.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:39",
+  "name": "Sputnik Armenia",
+  "url": "https://icecast-rian.cdnvideo.ru/voicearm1",
+  "favicon": "https://radio.armblog.net/sputnik.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:40",
+  "name": "Voice of Van",
+  "url": "http://23.92.21.22/;stream.nsv",
+  "favicon": "https://radio.armblog.net/voice.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:41",
+  "name": "Yerevan Nights",
+  "url": "https://icecast.worldweb.services/Web",
+  "favicon": "https://radio.armblog.net/nights.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:42",
+  "name": "XFM ռադիո",
+  "url": "https://eu.stream4cast.com/proxy/xfmradio/stream",
+  "favicon": "https://radio.armblog.net/xfm.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:43",
+  "name": "Радио Мир",
+  "url": "https://icecast-mirtv.cdnvideo.ru/radio_mir_256",
+  "favicon": "https://radio.armblog.net/mir.jpg",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:44",
+  "name": "Радио Шансон Ереван",
+  "url": "https://eu.stream4cast.com/proxy/ulissesm/stream",
+  "favicon": "https://radio.armblog.net/radio_shanson.png",
+  "subtitle": "Armenia"
+ },
+ {
+  "id": "am:45",
+  "name": "Русское Радио",
+  "url": "https://rusradio.hostingradio.ru/rusradio128.mp3",
+  "favicon": "https://radio.armblog.net/rusradio.jpg",
+  "subtitle": "Armenia"
+ }
+]
