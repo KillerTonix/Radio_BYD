@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -98,6 +99,7 @@ fun WheelRadioApp(
                     AppTab.COUNTRIES -> CountriesTab(model)
                     AppTab.FAVORITES -> FavoritesTab(model)
                     AppTab.LOCAL -> LocalTab(model)
+                    AppTab.BLUETOOTH -> BluetoothTab(model)
                 }
             }
             MiniPlayer(model, onPlayPause, onNext, onPrevious)
@@ -289,6 +291,100 @@ private fun LocalTab(model: AppModel) {
                     "Allow access so the app can find music on the car and on USB sticks."
                 else "No audio files found. Plug in a USB stick and tap Rescan.",
             )
+        }
+    }
+}
+
+// ---------- Bluetooth ----------
+
+@Composable
+private fun BluetoothTab(model: AppModel) {
+    val bt = BluetoothBridge
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { bt.refresh() }
+    when (bt.status) {
+        BluetoothBridge.Status.CONNECTED -> Row(
+            Modifier.fillMaxSize().padding(vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier.size(220.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFF2E3A4D)),
+                contentAlignment = Alignment.Center,
+            ) {
+                val art = bt.art
+                if (art != null) androidx.compose.foundation.Image(
+                    art.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                ) else Text("BT", fontSize = 64.sp, color = TextDim, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.width(32.dp))
+            Column(Modifier.weight(1f)) {
+                Text("From your phone · ${bt.source}", fontSize = 16.sp, color = TextDim)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    bt.title.ifBlank { "Nothing playing" }, fontSize = 30.sp, fontWeight = FontWeight.Bold,
+                    color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+                if (bt.artist.isNotBlank()) Text(bt.artist, fontSize = 20.sp, color = TextDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(28.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RoundIconButton(PlayerIcons.Previous, "Previous song", { bt.previous() }, size = 80, filled = false)
+                    Spacer(Modifier.width(16.dp))
+                    RoundIconButton(
+                        if (bt.isPlaying) PlayerIcons.Pause else PlayerIcons.Play,
+                        if (bt.isPlaying) "Pause" else "Play",
+                        { if (bt.isPlaying) bt.pause() else { model.pauseRadio(); bt.play() } },
+                        size = 96,
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    RoundIconButton(PlayerIcons.Next, "Next song", { bt.next() }, size = 80, filled = false)
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    if (bt.active) "Wheel buttons control Bluetooth music." else "Press play here to use the wheel buttons for Bluetooth.",
+                    fontSize = 15.sp, color = TextDim,
+                )
+            }
+        }
+        BluetoothBridge.Status.SEARCHING -> Centered { CircularProgressIndicator() }
+        BluetoothBridge.Status.NOT_FOUND -> Centered {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("No Bluetooth music found.", fontSize = 22.sp, color = Color.White)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Connect your phone, start music on it (or in the car's Bluetooth music app), then tap Retry.",
+                    fontSize = 17.sp, color = TextDim,
+                )
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = { bt.refresh() }) { Icon(Icons.Filled.Refresh, null); Spacer(Modifier.width(8.dp)); Text("Retry") }
+            }
+        }
+        BluetoothBridge.Status.NEEDS_ACCESS -> Centered {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("One-time setup needed", fontSize = 22.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "To control Bluetooth music, Wheel Radio needs notification access. Turn it on in settings, " +
+                        "or run this once over ADB:",
+                    fontSize = 17.sp, color = TextDim,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "adb shell cmd notification allow_listener dev.wheelradio/dev.wheelradio.MediaListener",
+                    fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = Color(0xFF80CBC4),
+                )
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(onClick = {
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                    }) { Text("Open settings") }
+                    OutlinedButton(onClick = { bt.refresh() }) { Text("Retry") }
+                }
+            }
         }
     }
 }

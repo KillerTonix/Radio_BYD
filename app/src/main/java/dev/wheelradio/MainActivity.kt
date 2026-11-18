@@ -28,11 +28,22 @@ class MainActivity : ComponentActivity() {
             }
         }
         model.setShuffle = { on -> controller?.shuffleModeEnabled = on }
+        model.pauseRadio = { controller?.pause() }
+        BluetoothBridge.start(this)
         model.loadCountries()
         setContent {
             WheelRadioApp(
                 model = model,
-                onPlayPause = { controller?.let { if (it.isPlaying) it.pause() else it.play() } },
+                onPlayPause = {
+                    controller?.let {
+                        if (it.isPlaying) it.pause()
+                        else {
+                            BluetoothBridge.pause()
+                            BluetoothBridge.active = false
+                            it.play()
+                        }
+                    }
+                },
                 onNext = { controller?.seekToNext() },
                 onPrevious = { controller?.seekToPrevious() },
             )
@@ -41,6 +52,8 @@ class MainActivity : ComponentActivity() {
 
     private fun play(list: List<Station>, index: Int) {
         if (list.isEmpty()) return
+        BluetoothBridge.pause()
+        BluetoothBridge.active = false
         model.rememberQueue(list, index)
         controller?.run {
             setMediaItems(list.map { it.toMediaItem() }, index, C.TIME_UNSET)
@@ -102,6 +115,10 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_CHANNEL_DOWN -> false
             else -> null // volume keys, typing etc. go to the system as usual
         }
+        if (next != null && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+            BluetoothBridge.handle(if (next) WheelAction.NEXT else WheelAction.PREVIOUS)
+        ) return true
+        if (next != null && BluetoothBridge.active && event.action == KeyEvent.ACTION_UP) return true
         val c = controller
         if (next != null && c != null) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {

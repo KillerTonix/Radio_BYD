@@ -71,7 +71,10 @@ class RadioService : MediaSessionService() {
                 repo.shuffle = shuffleModeEnabled
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (isPlaying) retries = 0
+                if (isPlaying) {
+                    retries = 0
+                    BluetoothBridge.active = false // our player is the source again
+                }
             }
         })
         exo.prepare()
@@ -99,7 +102,7 @@ class RadioService : MediaSessionService() {
             })
             .build()
 
-        bydReceiver = BydWheelKeyReceiver { player.perform(it) }
+        bydReceiver = BydWheelKeyReceiver { if (!BluetoothBridge.handle(it)) player.perform(it) }
         bydReceiver.register(this)
     }
 

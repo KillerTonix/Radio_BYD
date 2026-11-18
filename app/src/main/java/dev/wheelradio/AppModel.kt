@@ -12,7 +12,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class AppTab(val title: String) { COUNTRIES("By countries"), FAVORITES("Favorites"), LOCAL("Local & USB") }
+enum class AppTab(val title: String) {
+    COUNTRIES("By countries"), FAVORITES("Favorites"), LOCAL("Local & USB"), BLUETOOTH("Bluetooth")
+}
 
 data class NowPlaying(
     val station: Station? = null,
@@ -35,6 +37,9 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
 
     /** Set by the activity: play the list in random order. */
     var playShuffled: (List<Station>) -> Unit = { }
+
+    /** Set by the activity: pause our own player (before Bluetooth starts). */
+    var pauseRadio: () -> Unit = { }
 
     /** Set by the activity: turn shuffle on / off for whatever is playing. */
     var setShuffle: (Boolean) -> Unit = { }
