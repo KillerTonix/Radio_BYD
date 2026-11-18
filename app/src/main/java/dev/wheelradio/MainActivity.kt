@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -131,9 +132,9 @@ private fun RadioScreen(
             )
             Spacer(Modifier.height(32.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                BigButton("⏮", onPrev)
-                BigButton(if (state.isPlaying) "⏸" else "▶", onPlayPause)
-                BigButton("⏭", onNext)
+                BigButton(PlayerIcons.Previous, "Previous station", onPrev)
+                BigButton(if (state.isPlaying) PlayerIcons.Pause else PlayerIcons.Play, if (state.isPlaying) "Pause" else "Play", onPlayPause)
+                BigButton(PlayerIcons.Next, "Next station", onNext)
             }
             Spacer(Modifier.height(24.dp))
             TextButton(onClick = { showLog = !showLog }) {
@@ -167,8 +168,8 @@ private fun RadioScreen(
 }
 
 @Composable
-private fun BigButton(label: String, onClick: () -> Unit) {
-    Button(onClick = onClick, modifier = Modifier.size(110.dp)) {
-        Text(label, fontSize = 40.sp)
+private fun BigButton(icon: ImageVector, description: String, onClick: () -> Unit) {
+    Button(onClick = onClick, modifier = Modifier.size(110.dp), contentPadding = PaddingValues(0.dp)) {
+        Icon(icon, contentDescription = description, modifier = Modifier.size(56.dp))
     }
 }
