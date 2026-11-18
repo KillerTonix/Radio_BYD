@@ -238,7 +238,13 @@ private fun SearchResults(model: AppModel, q: String) {
 private fun FavoritesTab(model: AppModel) {
     val q = model.query.trim()
     val list = if (q.isEmpty()) model.favorites else model.favorites.filter { it.name.contains(q, true) }
-    StationList(model, list, "No favorites yet. Tap the heart next to a station to add it here.")
+    Column(Modifier.fillMaxSize()) {
+        if (list.size > 1) Button(onClick = { model.playShuffled(list) }, modifier = Modifier.padding(vertical = 12.dp)) {
+            Icon(PlayerIcons.Shuffle, null); Spacer(Modifier.width(8.dp))
+            Text("Shuffle favorites", fontSize = 17.sp)
+        }
+        StationList(model, list, "No favorites yet. Tap the heart next to a station to add it here.")
+    }
 }
 
 // ---------- Local & USB ----------
@@ -266,6 +272,10 @@ private fun LocalTab(model: AppModel) {
             Button(onClick = { if (granted) model.scanLocal() else launcher.launch(permission) }) {
                 Icon(Icons.Filled.Refresh, null); Spacer(Modifier.width(8.dp))
                 Text(if (granted) "Rescan device & USB" else "Allow access to music", fontSize = 17.sp)
+            }
+            if (files.isNotEmpty()) Button(onClick = { model.playShuffled(files) }) {
+                Icon(PlayerIcons.Shuffle, null); Spacer(Modifier.width(8.dp))
+                Text("Shuffle all (${files.size})", fontSize = 17.sp)
             }
         }
         when {
@@ -374,6 +384,13 @@ private fun MiniPlayer(model: AppModel, onPlayPause: () -> Unit, onNext: () -> U
             val sub = if (now.buffering) "Connecting…" else now.nowPlaying
             if (sub.isNotBlank()) Text(sub, fontSize = 16.sp, color = TextDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        IconButton(onClick = { model.setShuffle(!now.shuffle) }, modifier = Modifier.size(56.dp)) {
+            Icon(
+                PlayerIcons.Shuffle, if (now.shuffle) "Shuffle on" else "Shuffle off",
+                tint = if (now.shuffle) Accent else TextDim, modifier = Modifier.size(30.dp),
+            )
+        }
+        Spacer(Modifier.width(4.dp))
         RoundIconButton(PlayerIcons.Previous, "Previous", onPrevious, size = 56, filled = false)
         Spacer(Modifier.width(8.dp))
         RoundIconButton(

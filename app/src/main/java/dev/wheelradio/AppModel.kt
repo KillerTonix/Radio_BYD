@@ -21,6 +21,7 @@ data class NowPlaying(
     val artwork: String = "",
     val isPlaying: Boolean = false,
     val buffering: Boolean = false,
+    val shuffle: Boolean = false,
 )
 
 /** Screen state. Lives as long as the activity; all network / disk work runs on Dispatchers.IO. */
@@ -30,6 +31,12 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
 
     /** Set by the activity: replace the play queue and start playing at index. */
     var playList: (List<Station>, Int) -> Unit = { _, _ -> }
+
+    /** Set by the activity: play the list in random order. */
+    var playShuffled: (List<Station>) -> Unit = { }
+
+    /** Set by the activity: turn shuffle on / off for whatever is playing. */
+    var setShuffle: (Boolean) -> Unit = { }
 
     var tab by mutableStateOf(AppTab.COUNTRIES)
     var query by mutableStateOf("")

@@ -1,6 +1,7 @@
 package dev.wheelradio
 
 import android.os.SystemClock
+import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
 
@@ -34,7 +35,9 @@ class StationSwitchingPlayer(player: Player) : ForwardingPlayer(player) {
         KeyLog.add("Player", via)
         val count = mediaItemCount
         if (count == 0) return
-        val target = Math.floorMod(currentMediaItemIndex + direction, count)
+        // Follow the player's own order, so shuffle mode is respected (repeat-all makes it wrap around).
+        val target = (if (direction > 0) wrappedPlayer.nextMediaItemIndex else wrappedPlayer.previousMediaItemIndex)
+            .takeIf { it != C.INDEX_UNSET } ?: Math.floorMod(currentMediaItemIndex + direction, count)
         wrappedPlayer.seekToDefaultPosition(target)
         wrappedPlayer.playWhenReady = true
     }

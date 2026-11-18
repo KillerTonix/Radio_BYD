@@ -25,6 +25,10 @@ class StationRepository(private val context: Context) {
         get() = prefs.getInt("last_index", 0)
         set(value) = prefs.edit().putInt("last_index", value).apply()
 
+    var shuffle: Boolean
+        get() = prefs.getBoolean("shuffle", false)
+        set(value) = prefs.edit().putBoolean("shuffle", value).apply()
+
     var musicFolder: String?
         get() = prefs.getString("music_folder", null)
         set(value) = prefs.edit().putString("music_folder", value).apply()

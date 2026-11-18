@@ -21,6 +21,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         model = AppModel(this, lifecycleScope)
         model.playList = ::play
+        model.playShuffled = { list ->
+            if (list.isNotEmpty()) {
+                play(list, list.indices.random())
+                controller?.shuffleModeEnabled = true
+            }
+        }
+        model.setShuffle = { on -> controller?.shuffleModeEnabled = on }
         model.loadCountries()
         setContent {
             WheelRadioApp(
@@ -73,6 +80,7 @@ class MainActivity : ComponentActivity() {
             artwork = station?.favicon ?: "",
             isPlaying = p.isPlaying,
             buffering = p.playbackState == Player.STATE_BUFFERING,
+            shuffle = p.shuffleModeEnabled,
         )
     }
 
