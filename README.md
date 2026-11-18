@@ -31,7 +31,11 @@ The **key log** (button on the main screen) shows every press from every route, 
 
 No Android SDK is needed locally if you use GitHub: push the repo and the `Build APK` workflow produces `wheel-radio-debug-apk`.
 
-Locally: open the folder in Android Studio, or run `./gradlew assembleDebug` with the Android SDK installed. The APK is in `app/build/outputs/apk/debug/`.
+Locally: open the folder in Android Studio, or run `./gradlew assembleDebug` with the Android SDK installed. The APKs are in `app/build/outputs/apk/<car|phone>/debug/`.
+
+## Which APK
+
+The build makes two APKs: **app-car-debug.apk** for the head unit (everything), and **app-phone-debug.apk** for testing on a phone. The phone one leaves out the notification listener used by the Bluetooth fallback, because Google Play Protect blocks sideloaded apps that have one.
 
 ## Install on the car
 

@@ -100,6 +100,12 @@ object BluetoothBridge {
         val msm = ctx.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
         sessionManager = msm
         val listenerComponent = ComponentName(ctx, MediaListener::class.java)
+        val listenerDeclared = runCatching { ctx.packageManager.getServiceInfo(listenerComponent, 0) }.isSuccess
+        if (!listenerDeclared) {
+            // Phone build: no notification listener, so only the AVRCP route exists.
+            status = Status.NOT_FOUND
+            return
+        }
         val sessions = try {
             msm.getActiveSessions(listenerComponent)
         } catch (e: SecurityException) {
