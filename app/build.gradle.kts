@@ -12,8 +12,8 @@ android {
         applicationId = "dev.wheelradio"
         minSdk = 29 // Android 10, as on the BYD Yuan Plus / Atto 3 DiLink head unit
         targetSdk = 34
-        versionCode = 8
-        versionName = "0.5.1"
+        versionCode = 9
+        versionName = "0.5.2"
     }
 
     // "car": full app for the head unit. "phone": same app without the notification listener

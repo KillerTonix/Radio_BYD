@@ -343,6 +343,10 @@ private fun BluetoothTab(model: AppModel) {
                     if (bt.active) "Wheel buttons control Bluetooth music." else "Press play here to use the wheel buttons for Bluetooth.",
                     fontSize = 15.sp, color = TextDim,
                 )
+                if (bt.title.isBlank()) {
+                    Spacer(Modifier.height(12.dp))
+                    CarBluetoothAppButton(model)
+                }
             }
         }
         BluetoothBridge.Status.SEARCHING -> Centered { CircularProgressIndicator() }
@@ -356,6 +360,8 @@ private fun BluetoothTab(model: AppModel) {
                 )
                 Spacer(Modifier.height(16.dp))
                 Button(onClick = { bt.refresh() }) { Icon(Icons.Filled.Refresh, null); Spacer(Modifier.width(8.dp)); Text("Retry") }
+                Spacer(Modifier.height(12.dp))
+                CarBluetoothAppButton(model)
             }
         }
         BluetoothBridge.Status.NEEDS_ACCESS -> Centered {
@@ -383,6 +389,39 @@ private fun BluetoothTab(model: AppModel) {
                         }
                     }) { Text("Open settings") }
                     OutlinedButton(onClick = { bt.refresh() }) { Text("Retry") }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Nothing playing usually means the car hasn't switched its audio source to Bluetooth, so the phone
+ * has no media-audio device to send to. Opening the car's own Bluetooth music app does that switch.
+ */
+@Composable
+private fun CarBluetoothAppButton(model: AppModel) {
+    val context = LocalContext.current
+    var choices by remember { mutableStateOf<List<BluetoothBridge.CarApp>?>(null) }
+    Column {
+        OutlinedButton(onClick = {
+            model.pauseRadio()
+            val apps = BluetoothBridge.findCarBluetoothApps(context)
+            if (apps.size == 1) BluetoothBridge.openCarApp(context, apps[0]) else choices = apps
+        }) { Text("Open the car's Bluetooth music", fontSize = 17.sp) }
+        Text(
+            "Use this if your phone doesn't offer the car for music. Then come back here.",
+            fontSize = 14.sp, color = TextDim,
+        )
+        choices?.let { apps ->
+            Spacer(Modifier.height(8.dp))
+            if (apps.isEmpty()) Text(
+                "Couldn't find it automatically. Open Bluetooth music from the car's own menu.",
+                fontSize = 15.sp, color = TextDim,
+            )
+            apps.take(6).forEach { app ->
+                TextButton(onClick = { choices = null; BluetoothBridge.openCarApp(context, app) }) {
+                    Text("${app.label}  ·  ${app.packageName}", fontSize = 15.sp)
                 }
             }
         }

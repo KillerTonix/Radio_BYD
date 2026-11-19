@@ -168,6 +168,41 @@ object BluetoothBridge {
     fun next() { controller?.transportControls?.skipToNext() }
     fun previous() { controller?.transportControls?.skipToPrevious() }
 
+    data class CarApp(val label: String, val packageName: String)
+
+    /**
+     * Apps on the head unit that look like the car's Bluetooth music player. Opening it switches the car's
+     * audio source to Bluetooth, which is what makes the phone see the car as a media-audio device.
+     */
+    fun findCarBluetoothApps(ctx: Context): List<CarApp> {
+        val pm = ctx.packageManager
+        val launcher = android.content.Intent(android.content.Intent.ACTION_MAIN)
+            .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+        val all = pm.queryIntentActivities(launcher, 0)
+            .map { CarApp(it.loadLabel(pm).toString(), it.activityInfo.packageName) }
+            .filter { it.packageName != ctx.packageName }
+            .distinctBy { it.packageName }
+        fun score(a: CarApp): Int {
+            val s = (a.label + " " + a.packageName).lowercase()
+            return when {
+                "bluetooth" in s || "蓝牙" in s || "bt music" in s || "btmusic" in s || ".bt" in s -> 0
+                "music" in s || "音乐" in s || "media" in s || "multimedia" in s -> 1
+                else -> 9
+            }
+        }
+        val hits = all.filter { score(it) < 9 }.sortedBy { score(it) }
+        KeyLog.add("BT", "car apps: " + hits.joinToString { "${it.label} (${it.packageName})" }.ifEmpty { "none found" })
+        return hits
+    }
+
+    fun openCarApp(ctx: Context, app: CarApp) {
+        val intent = ctx.packageManager.getLaunchIntentForPackage(app.packageName) ?: return
+        runCatching { ctx.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        active = true
+        // Give the car a moment to switch source, then look for the playing session again.
+        main.postDelayed({ if (controller == null) refresh() }, 3000)
+    }
+
     /** Wheel / media key while Bluetooth is the active source. Returns true if handled here. */
     fun handle(action: WheelAction): Boolean {
         if (!active || controller == null) return false
