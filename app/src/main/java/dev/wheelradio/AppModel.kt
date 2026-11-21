@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 enum class AppTab(val title: String) {
-    COUNTRIES("By countries"), FAVORITES("Favorites"), LOCAL("Local & USB"), BLUETOOTH("Bluetooth")
+    COUNTRIES("Radio"), FAVORITES("Favorites"), LOCAL("Music"), BLUETOOTH("Bluetooth")
 }
 
 data class NowPlaying(
@@ -67,6 +67,21 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
 
     var favorites by mutableStateOf(repo.favorites)
         private set
+
+    /** The user's pick between radio and song favorites; null until they tap one. */
+    private var favoriteSongsPicked by mutableStateOf<Boolean?>(null)
+
+    /**
+     * Whether the Favorites tab shows songs (local / USB) instead of radio stations. Until the user picks one it
+     * follows what is playing, and falls back to songs only when there are no radio favorites to show.
+     */
+    var showFavoriteSongs: Boolean
+        get() = favoriteSongsPicked ?: (now.station?.local == true ||
+            (favorites.none { !it.local } && favorites.any { it.local }))
+        set(value) { favoriteSongsPicked = value }
+
+    val favoriteRadios: List<Station> get() = favorites.filterNot { it.local }
+    val favoriteSongs: List<Station> get() = favorites.filter { it.local }
 
     var localFiles by mutableStateOf<List<Station>>(emptyList())
     var localScanning by mutableStateOf(false)

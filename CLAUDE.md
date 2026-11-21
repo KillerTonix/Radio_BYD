@@ -8,7 +8,7 @@ Drive the app on an emulator with adb (or the `android-emulator` MCP tools) and 
 ## Where things live
 | Concern | Location |
 |---|---|
-| Screens, tabs (`By countries`, `Favorites`, `Local & USB`, `Bluetooth`), mini player, key log | `Ui.kt`, `AppModel.kt` |
+| Screens, tabs (`Radio` (by countries), `Favorites` (Radio / Songs sections), `Music` (local & USB), `Bluetooth`), mini player, key log | `Ui.kt`, `AppModel.kt` |
 | Playback, retry/skip on errors, `last_index` persistence | `RadioService.kt` |
 | Next/previous = station switch, 400 ms debounce across key routes | `StationSwitchingPlayer.kt` |
 | Wheel key routes: focused window (`MainActivity.dispatchKeyEvent`), MediaSession media buttons, BYD broadcast `APP_REV_DATA` byte[] `[4,1,code]` | `MainActivity.kt`, `RadioService.kt`, `BydWheelKeyReceiver.kt` |
@@ -65,7 +65,7 @@ On start the service resumes the last station and auto-plays.
 
 ## QA agent pipeline
 1. Build, install and launch the car debug APK on the running `BYD_DiLink_API29` emulator, and confirm the app process and its media session exist (`dumpsys media_session`).
-2. **ui-explorer**: map screens and selectors in landscape 1920x1080 and portrait 1080x1920. Cover tabs, the Armenia / Russia / Germany station lists, search, favorites persistence across force-stop and relaunch, the Local & USB flow with pushed test MP3s, and the key log. Writes `test-results/exploration-report.md`.
+2. **ui-explorer**: map screens and selectors in landscape 1920x1080 and portrait 1080x1920. Cover tabs, the Armenia / Russia / Germany station lists, search, favorites persistence across force-stop and relaunch, the Music (local & USB) flow with pushed test MP3s, and the key log. Writes `test-results/exploration-report.md`.
 3. **audio-session-tester**: check `dumpsys media_session` / `dumpsys audio` states, rapid switching and the debounce, wheel keyevents (85/87/88/126/127/166/167) with the app in the foreground and the background, dead-stream and network-loss recovery, shuffle, audio focus, and lifecycle. Writes `test-results/audio-session-report.md`.
 4. **test-writer-healer**: extend the JVM and instrumented suites from the reports above, run both, fix *test-side* failures, and re-run until green. Writes `test-results/test-suite-report.md`.
 

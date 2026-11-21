@@ -52,6 +52,7 @@ WheelRadioApp (Column)
 - Clickable containers usually have **empty** text/desc. The text/desc is on a **child** node. With UiAutomator, find the child, then tap its parent's bounds (or tap the child's centre, which works because the click target encloses it). With Compose test APIs, use `onNodeWithText(...)` / `onNodeWithContentDescription(...)`. These merge semantics, so the tap reaches the clickable.
 - **Selected tab:** the selected Tab node has `selected="true"` **and `clickable="false"`**. Unselected tabs are `clickable="true"`, `selected="false"`. This is a reliable way to assert which tab is active.
 - Tab labels are rendered **uppercase**: `BY COUNTRIES`, `FAVORITES`, `LOCAL & USB` (XML `LOCAL &amp; USB`), `BLUETOOTH`. Source titles are `By countries`, `Favorites`, `Local & USB`, `Bluetooth`. In Compose tests, match `"BY COUNTRIES"`, or add tags.
+- **Renamed later (`feature/separate-favorites`):** `By countries` is now `Radio` (`RADIO`) and `Local & USB` is now `Music` (`MUSIC`). This report keeps the names as they were when it was written.
 - Country flag is a separate TextView (emoji regional indicators, e.g. `🇦🇲`). Country-list headers and chips concatenate the flag: header = `"🇦🇲  Armenia"` (**two spaces**), chip = `"🇦🇲 Armenia"` (**one space**).
 
 ---

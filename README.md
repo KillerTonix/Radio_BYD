@@ -9,11 +9,11 @@ Internet radio for the BYD Yuan Plus / Atto 3 (DiLink, Android 10), controlled f
 
 ## Features
 
-- **By countries:** every country from the free [Radio Browser](https://www.radio-browser.info) directory, with Armenia, Russia, Germany, USA, Georgia and France pinned first. Tap a tile for its stations, or its play button to start the most popular one.
+- **Radio:** stations by country: every country from the free [Radio Browser](https://www.radio-browser.info) directory, with Armenia, Russia, Germany, USA, Georgia and France pinned first. Tap a tile for its stations, or its play button to start the most popular one.
 - **Search:** station names worldwide, plus matching countries.
 - **Favorites:** heart any station (or local track) from a list or the mini player.
-- **Shuffle (local / USB songs only):** toggle in the mini player while a song plays, "Shuffle all" on Local & USB, or shuffle favorite songs. Radio always plays in list order. Wheel next/previous follow the shuffled order.
-- **Local & USB:** music the media scanner finds on the car and on USB sticks.
+- **Shuffle (local / USB songs only):** toggle in the mini player while a song plays, "Shuffle all" on Music, or shuffle favorite songs. Radio always plays in list order. Wheel next/previous follow the shuffled order.
+- **Music:** music the media scanner finds on the car and on USB sticks.
 - **Bluetooth:** shows the song playing from your phone over the car's Bluetooth, with play/pause/next/previous. The car still plays the audio; the app is the remote. It tries Android's AVRCP controller service first, then other apps' media sessions (needs notification access once: `adb shell cmd notification allow_listener dev.wheelradio/dev.wheelradio.MediaListener`). After you press play there, the wheel buttons control Bluetooth until you play radio or a song in the app again.
 - Next / previous (on screen or on the wheel) steps through whichever list you started playing from.
 

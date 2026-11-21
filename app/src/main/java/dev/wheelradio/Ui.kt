@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +41,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -143,7 +145,7 @@ private fun TopBar(model: AppModel) {
     }
 }
 
-// ---------- By countries ----------
+// ---------- Radio (by countries) ----------
 
 @Composable
 private fun CountriesTab(model: AppModel) {
@@ -245,19 +247,54 @@ private fun SearchResults(model: AppModel, q: String) {
 @Composable
 private fun FavoritesTab(model: AppModel) {
     val q = model.query.trim()
-    val list = if (q.isEmpty()) model.favorites else model.favorites.filter { it.name.contains(q, true) }
+    val songsView = model.showFavoriteSongs
+    // Radio stations and songs are kept apart, so tapping one queues only its own kind and the wheel's
+    // Next / Previous never jumps from a radio station into a song (or back).
+    val all = if (songsView) model.favoriteSongs else model.favoriteRadios
+    val list = if (q.isEmpty()) all else all.filter { it.name.contains(q, true) || (songsView && it.subtitle.contains(q, true)) }
     Column(Modifier.fillMaxSize()) {
-        // Shuffle only applies to songs, so offer it for favorite local / USB songs only.
-        val songs = list.filter { it.local }
-        if (songs.size > 1) Button(onClick = { model.playShuffled(songs) }, modifier = Modifier.padding(vertical = 12.dp)) {
-            Icon(PlayerIcons.Shuffle, null); Spacer(Modifier.width(8.dp))
-            Text("Shuffle favorite songs (${songs.size})", fontSize = 17.sp)
+        Row(
+            Modifier.padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SectionPill("Radio (${model.favoriteRadios.size})", !songsView) { model.showFavoriteSongs = false }
+            SectionPill("Songs (${model.favoriteSongs.size})", songsView) { model.showFavoriteSongs = true }
+            Spacer(Modifier.width(12.dp))
+            // Shuffle only applies to songs.
+            if (songsView && list.size > 1) Button(onClick = { model.playShuffled(list) }) {
+                Icon(PlayerIcons.Shuffle, null); Spacer(Modifier.width(8.dp))
+                Text("Shuffle favorite songs (${list.size})", fontSize = 17.sp)
+            }
         }
-        StationList(model, list, "No favorites yet. Tap the heart next to a station to add it here.")
+        StationList(
+            model, list,
+            if (songsView) "No favorite songs yet. Tap the heart next to a song in Music to add it here."
+            else "No favorites yet. Tap the heart next to a station to add it here.",
+        )
     }
 }
 
-// ---------- Local & USB ----------
+/** One of the Radio / Songs switches at the top of Favorites. */
+@Composable
+private fun SectionPill(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(if (selected) Accent else Surface1)
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
+            .heightIn(min = 52.dp)
+            .padding(horizontal = 24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label, fontSize = 18.sp, fontWeight = FontWeight.Medium,
+            color = if (selected) Bg else TextDim,
+        )
+    }
+}
+
+// ---------- Music (local & USB) ----------
 
 @Composable
 private fun LocalTab(model: AppModel) {
