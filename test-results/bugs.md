@@ -88,6 +88,9 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 - **Evidence:** `L28_search_arm.xml`.
 
 ## [AUDIO] A station whose host never answers stays "Connecting…" for about 9 minutes before the dead-station skip
+- **Status: FIXED on branch `fix/failure-handling`.** The new `StreamRecovery` (used by `RadioService`) runs a "first audio" watchdog: if an attempt is still BUFFERING 20 s after it started, and has not played yet, it counts as a failure. A stalled station gets one retry (each attempt already cost 20 s), then the usual skip. The watchdog only covers the start of an attempt; a stream that stalls mid-play is still left to ExoPlayer's own reconnect.
+  - Real network, `am:16` `Ռադիո Ջազ` (`http://am.radioaurora.am:8010/jz`) seeded as the queue: `no audio after 20 s` twice, then `station unavailable, skipping to the next one` at **+44 s** (was about +535 s), then `Ռադիո Մարիամ` PLAYING.
+  - Tests: `test/RadioServiceRetryPolicyTest.station_that_never_answers_is_skipped_after_the_no_audio_watchdog` (local socket that never replies, fake clock) and `androidTest/RadioServicePlaybackTest.station_that_never_answers_is_skipped_within_a_minute` (`MockWebServer` `NO_RESPONSE`, skipped after 42 s).
 - **Severity:** Medium
 - **Steps:**
   1. By countries → Armenia list → play `Ռադիո Ջազ` (`am:16`, `http://am.radioaurora.am:8010/jz`). The same happens with `Ayp-FM` (`am:35`).
@@ -133,6 +136,20 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 - **Evidence:** background `KEY 166 | before idx=20 | after idx=20`, no KeyLog line. Foreground: `[Activity] KEYCODE_CHANNEL_UP DOWN` → `[Player] seekToNext`. With the dialog open: `87` → only `[Player] seekToNext`; `166` → nothing. `QA scratch folder audio/s3_keylog_dialog_open.xml`.
 
 ## [AUDIO] Failed station shows no error state; single-station queue stays silent with a plain Play button
+- **Status: FIXED on branch `fix/failure-handling`.**
+  - **Status line:** `StreamRecovery` publishes a status line through the MediaSession's session extras, and the mini player shows it in amber in place of "Connecting…" or the song title:
+    - `Can't reach the station – retrying (n/3)…` (`n/1` for a station that never answers)
+    - `No internet – the station resumes when it's back`
+    - `Station unavailable – press Play to try again`
+    - It clears as soon as something plays or the station changes.
+  - **Play on a failed station:** it now gets a fresh set of retries. `StationSwitchingPlayer.prepare()` reports a user retry, which resets the count and cancels pending timers, and the mini player prepares an idle player before `play()`.
+  - **Next / Previous in a one-station queue:** they now start a new attempt (see the next bug).
+  - **Tests:**
+    - `androidTest/PlaybackStatusUiTest`: retrying → unavailable → Play retries; the status clears when a working station plays.
+    - `test/RadioServiceRetryPolicyTest.status_line_reports_retries_then_unavailable_for_a_single_dead_station`
+    - `play_on_a_failed_station_gets_a_fresh_set_of_retries` (4 → 8 errors)
+    - `offline_status_line_says_waiting_for_internet`
+    - Status assertions added to `RadioServicePlaybackTest`.
 - **Severity:** Low (UX). The UI is not frozen.
 - **Steps:**
   1. Favorites containing one dead URL (test data `http://127.0.0.1:9/dead.mp3`) → tap it.
@@ -146,6 +163,7 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 - **Evidence:** `QA scratch folder audio/s5_single_dead_final.png/.xml`, `s5_dead_midretry.png/.xml`; logcat errors at 14:41:52 / 57 / 04 / 13, then a single retry at 14:42:46 after the Play tap.
 
 ## [AUDIO] Next/Previous during an error back-off waits for the stale retry timer
+- **Status: FIXED on branch `fix/failure-handling`.** `StationSwitchingPlayer.skip()` now prepares an idle player right after seeking, and every station change or user retry cancels the pending back-off timer (`StreamRecovery.reset`). Test: `test/RadioServiceRetryPolicyTest.next_during_error_back_off_starts_the_new_station_immediately` (no longer `@Ignore`d, passes).
 - **Severity:** Low
 - **Steps:** queue with a dead first station → wait for the first error (state 7) → press `87` at once.
 - **Expected:** the next station starts buffering immediately.
@@ -184,7 +202,7 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 | [AUDIO] CHANNEL_UP/DOWN with key log open (**fixed**, test now enabled) | `WheelKeyRouteTest.channel_up_switches_station_while_key_log_dialog_is_open` | Failed with no switch within 5 s before the fix; passes on `fix/playback-bugs`. |
 | [AUDIO] CHANNEL_UP/DOWN in background (**platform limit**, stays ignored) | `WheelKeyRouteTest.channel_up_switches_station_with_the_app_in_background` | No switch within 5 s; Android never routes these keys to a background app. |
 | [AUDIO] Hold repeats skip in background (**fixed**, test now enabled) | `WheelKeyRouteTest.holding_media_next_in_background_switches_one_station` | Failed with `expected: 1 but was: 2` before the fix; passes on `fix/playback-bugs`. |
-| [AUDIO] Next during back-off waits for stale timer | `test/RadioServiceRetryPolicyTest.next_during_error_back_off_starts_the_new_station_immediately` (Robolectric, fake clock) | `playbackState` stays `STATE_IDLE` (1) after `seekToNext()` |
+| [AUDIO] Next during back-off waits for stale timer (**fixed**, test now enabled) | `test/RadioServiceRetryPolicyTest.next_during_error_back_off_starts_the_new_station_immediately` (Robolectric, fake clock) | Failed with `playbackState` staying `STATE_IDLE` (1) after `seekToNext()` before the fix; passes on `fix/failure-handling`. |
 | [AUDIO] APP_REV_DATA frames dropped without KeyLog | `test/BydWheelKeyReceiverTest.every_app_rev_data_frame_is_logged` | 0 KeyLog lines for an `int[]` frame and a group-5 frame (expected 2) |
 
 Not covered by an automated test:

@@ -2,6 +2,7 @@ package dev.wheelradio
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
@@ -9,7 +10,6 @@ import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
@@ -28,12 +28,8 @@ class RadioService : MediaSessionService() {
     private var session: MediaSession? = null
     private lateinit var bydReceiver: BydWheelKeyReceiver
     private val handler = Handler(Looper.getMainLooper())
-    private var retries = 0
     private lateinit var network: NetworkMonitor
-
-    /** True while a stream failed because the car is offline; we keep the station and retry when the network returns. */
-    private var waitingForNetwork = false
-    private var pendingRetry: Runnable? = null
+    private lateinit var recovery: StreamRecovery
 
     override fun onCreate() {
         super.onCreate()
@@ -58,65 +54,31 @@ class RadioService : MediaSessionService() {
             repo.lastIndex.coerceIn(0, (queue.size - 1).coerceAtLeast(0)),
             C.TIME_UNSET
         )
-        network = NetworkMonitor(this, handler) {
-            // Connectivity is back: give the station the driver was listening to a fresh set of retries.
-            if (waitingForNetwork) {
-                waitingForNetwork = false
-                retries = 0
-                KeyLog.add("Player", "network back, retrying the same station")
-                exo.prepare()
-            }
+        // Retries, skips, the no-audio watchdog and the offline wait (see StreamRecovery). Its status line
+        // travels to the UI in the session extras.
+        recovery = StreamRecovery(exo, handler, isOnline = { network.isOnline() }) { status ->
+            session?.setSessionExtras(Bundle().apply { putString(StreamRecovery.EXTRA_STATUS, status) })
         }
+        network = NetworkMonitor(this, handler) { recovery.onNetworkBack() }
         network.start()
+        exo.addListener(recovery.listener)
 
         exo.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 repo.lastIndex = exo.currentMediaItemIndex
-                retries = 0
-                waitingForNetwork = false
-            }
-            override fun onPlayerError(error: PlaybackException) {
-                KeyLog.add("Player", "error: ${error.errorCodeName}")
-                pendingRetry?.let(handler::removeCallbacks)
-                pendingRetry = null
-                // Only network streams can be fixed by waiting for the network; local / USB files (content://, file://) can't.
-                val scheme = exo.currentMediaItem?.localConfiguration?.uri?.scheme?.lowercase()
-                val streaming = scheme == "http" || scheme == "https"
-                if (streaming && !network.isOnline()) {
-                    // No network at all (tunnel, car park, dead zone): every station would fail the same way, so
-                    // skipping would only walk through the queue and lose the driver's station. Wait instead.
-                    waitingForNetwork = true
-                    retries = 0
-                    KeyLog.add("Player", "offline, keeping the station until the network returns")
-                    return
-                }
-                if (retries < 3) {
-                    // Mobile data in a moving car drops out; retry with backoff.
-                    retries++
-                    val retry = Runnable { pendingRetry = null; exo.prepare() }
-                    pendingRetry = retry
-                    handler.postDelayed(retry, 2_000L * retries)
-                } else if (exo.mediaItemCount > 1) {
-                    // Station looks dead: move on so the driver isn't left with silence.
-                    retries = 0
-                    exo.seekToNextMediaItem()
-                    exo.prepare()
-                }
             }
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                 repo.shuffle = shuffleModeEnabled
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (isPlaying) {
-                    retries = 0
-                    BluetoothBridge.active = false // our player is the source again
-                }
+                if (isPlaying) BluetoothBridge.active = false // our player is the source again
             }
         })
         exo.prepare()
         exo.playWhenReady = true // resume the last station when the app starts, like a car radio
 
-        val player = StationSwitchingPlayer(exo)
+        // Play on an idle player and Next / Previous (from the UI, the session or the wheel) come through here.
+        val player = StationSwitchingPlayer(exo, onUserRetry = recovery::onUserRetry)
         val openApp = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
@@ -179,6 +141,7 @@ class RadioService : MediaSessionService() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        recovery.release()
         network.stop()
         bydReceiver.unregister(this)
         session?.run {

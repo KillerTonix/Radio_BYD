@@ -13,7 +13,6 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -21,7 +20,11 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ServiceController
 import org.robolectric.shadows.ShadowNetwork
 import org.robolectric.shadows.ShadowNetworkCapabilities
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.Socket
 import java.time.Duration
+import kotlin.concurrent.thread
 
 /**
  * RadioService's error policy (3 retries with 2/4/6 s back-off, then skip to the next station),
@@ -51,9 +54,23 @@ class RadioServiceRetryPolicyTest {
     }
 
     /** The session is only handed out to connecting controllers, so read the private field (test-only reflection). */
-    private fun sessionPlayer(service: RadioService): Player {
+    private fun session(service: RadioService): MediaSession {
         val f = RadioService::class.java.getDeclaredField("session").apply { isAccessible = true }
-        return (f.get(service) as MediaSession).player
+        return f.get(service) as MediaSession
+    }
+
+    private fun sessionPlayer(service: RadioService): Player = session(service).player
+
+    /** The status line RadioService publishes for the mini player. */
+    private fun status(): String =
+        session(controller.get()).sessionExtras.getString(StreamRecovery.EXTRA_STATUS).orEmpty()
+
+    /** Robolectric's default network has no capabilities (= offline for NetworkMonitor); give it internet. */
+    private fun goOnline() {
+        val cm = context.getSystemService(ConnectivityManager::class.java)
+        val caps = ShadowNetworkCapabilities.newInstance()
+        shadowOf(caps).addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        shadowOf(cm).setNetworkCapabilities(cm.activeNetwork, caps)
     }
 
     @Before fun clearPrefs() {
@@ -169,10 +186,9 @@ class RadioServiceRetryPolicyTest {
     }
 
     /**
-     * After an error the player is IDLE; StationSwitchingPlayer.skip() seeks but never calls prepare(),
-     * so the new station only starts when the stale back-off timer fires.
+     * Regression: after an error the player is IDLE, and StationSwitchingPlayer.skip() used to only seek, so the
+     * new station started only when the stale back-off timer fired. skip() now prepares an idle player.
      */
-    @Ignore("Known bug [AUDIO] Next/Previous during an error back-off waits for the stale retry timer - see test-results/bugs.md")
     @Test fun next_during_error_back_off_starts_the_new_station_immediately() {
         startService(queueSize = 3)
         runUntil(5_000) { player.playerError != null }
@@ -185,5 +201,66 @@ class RadioServiceRetryPolicyTest {
         runUntil(100) { false }
         assertThat(player.currentMediaItemIndex).isEqualTo(1)
         assertThat(player.playbackState).isNotEqualTo(Player.STATE_IDLE)
+    }
+
+    @Test fun status_line_reports_retries_then_unavailable_for_a_single_dead_station() {
+        startService(queueSize = 1)
+        runUntil(5_000) { player.playerError != null }
+        assertThat(status()).isEqualTo("Can't reach the station – retrying (1/3)…")
+        runUntil(40_000) { status() == StreamRecovery.STATUS_UNAVAILABLE }
+        assertThat(status()).isEqualTo(StreamRecovery.STATUS_UNAVAILABLE)
+        assertThat(errorLines()).hasSize(4)
+    }
+
+    /** Regression: Play after "unavailable" used to make one attempt only, because the retry count was never reset. */
+    @Test fun play_on_a_failed_station_gets_a_fresh_set_of_retries() {
+        startService(queueSize = 1)
+        runUntil(40_000) { status() == StreamRecovery.STATUS_UNAVAILABLE }
+        assertThat(errorLines()).hasSize(4)
+
+        player.prepare() // what Play does on an idle player (MainActivity and the session's play/pause handling)
+        assertThat(status()).isEmpty()
+        runUntil(40_000) { errorLines().size >= 8 && status() == StreamRecovery.STATUS_UNAVAILABLE }
+        assertThat(errorLines()).hasSize(8) // 1 attempt + 3 retries again
+    }
+
+    @Test fun offline_status_line_says_waiting_for_internet() {
+        StationRepository(context).queue = listOf(Station("net:0", "Net 0", "http://127.0.0.1:9/qa.mp3"))
+        controller = Robolectric.buildService(RadioService::class.java).create()
+        player = sessionPlayer(controller.get())
+        runUntil(10_000) { status().isNotEmpty() }
+        assertThat(status()).isEqualTo(StreamRecovery.STATUS_NO_NETWORK)
+    }
+
+    /**
+     * A host that accepts the connection and never answers used to keep "Connecting…" for about 9 minutes.
+     * The watchdog gives each attempt 20 s, retries once, then skips. A local socket that never replies stands
+     * in for the dead host (hermetic); Robolectric's fake clock makes the 40+ s run in a few seconds.
+     */
+    @Test fun station_that_never_answers_is_skipped_after_the_no_audio_watchdog() {
+        val blackHole = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
+        val held = mutableListOf<Socket>()
+        val acceptor = thread(isDaemon = true) {
+            runCatching { while (true) synchronized(held) { held += blackHole.accept() } }
+        }
+        try {
+            goOnline()
+            val silent = Station("net:silent", "Silent", "http://127.0.0.1:${blackHole.localPort}/never.mp3")
+            StationRepository(context).queue = listOf(silent, dead(1))
+            logBefore = KeyLog.entries.value.firstOrNull()
+            controller = Robolectric.buildService(RadioService::class.java).create()
+            player = sessionPlayer(controller.get())
+
+            val elapsed = runUntil(70_000) { player.currentMediaItemIndex == 1 }
+            assertWithMessage("silent station was never skipped").that(player.currentMediaItemIndex).isEqualTo(1)
+            val log = KeyLog.entries.value.takeWhile { it != logBefore }
+            assertThat(log.count { "[Player] no audio after 20 s" in it }).isEqualTo(2) // first attempt + 1 retry
+            assertThat(elapsed).isAtLeast(40_000L)
+            assertThat(elapsed).isLessThan(60_000L) // was about 9 minutes
+        } finally {
+            blackHole.close()
+            synchronized(held) { held.forEach { runCatching { it.close() } } }
+            acceptor.join(1_000)
+        }
     }
 }

@@ -25,6 +25,8 @@ data class NowPlaying(
     val buffering: Boolean = false,
     val shuffle: Boolean = false,
     val canShuffle: Boolean = false,
+    /** Why nothing is playing (retrying, no internet, station unavailable), from RadioService; "" when all is well. */
+    val status: String = "",
 )
 
 /** Screen state. Lives as long as the activity; all network / disk work runs on Dispatchers.IO. */
