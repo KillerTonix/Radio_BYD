@@ -14,6 +14,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.datasource.DataSourceBitmapLoader
+import androidx.media3.session.CacheBitmapLoader
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.google.common.util.concurrent.Futures
@@ -31,6 +33,7 @@ class RadioService : MediaSessionService() {
     private lateinit var network: NetworkMonitor
     private lateinit var recovery: StreamRecovery
 
+    @OptIn(UnstableApi::class) // setBitmapLoader, CacheBitmapLoader, DataSourceBitmapLoader
     override fun onCreate() {
         super.onCreate()
         val repo = StationRepository(this)
@@ -84,6 +87,12 @@ class RadioService : MediaSessionService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         session = MediaSession.Builder(this, player)
+            // Media3's default loader, plus the Android 10 SystemUI artwork guard.
+            .setBitmapLoader(
+                CacheBitmapLoader(
+                    SystemUiSafeBitmapLoader(DataSourceBitmapLoader(this), SystemUiSafeBitmapLoader.systemUiArtworkSize(this))
+                )
+            )
             .setSessionActivity(openApp)
             .setCallback(object : MediaSession.Callback {
                 // Items sent from the UI arrive without their URI; restore it from requestMetadata.

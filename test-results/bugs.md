@@ -216,3 +216,11 @@ Not covered by an automated test:
 - Dead curated URLs are content: they are checked by the network probe in step 2, never in tests.
 
 Positive path verified for the first time: a real `byte[]` `APP_REV_DATA` frame `[4,1,0x03]` switches exactly one station, both in Robolectric (`RadioServiceRetryPolicyTest.byd_next_frame_switches_the_service_player_once`) and on the emulator through an in-process `sendBroadcast` (`WheelKeyRouteTest.byd_app_rev_data_next_frame_switches_one_station`).
+
+## [AUDIO] "System UI keeps stopping" while a station with a 320 px wide logo plays — FIXED
+- **Severity:** High (on a 1920x1080 Android 10 head unit the system UI crash-loops for as long as the station is the active media session).
+- **Steps:** on `BYD_DiLink_API29` (1920x1080), play Radio Marshall (Armenia, logo `radiomarshall.am/images/logo.png`, 320x87).
+- **Expected:** the station plays; the system UI is unaffected.
+- **Actual:** "System UI keeps stopping" about every 3 s. `logcat -b crash`: `IllegalArgumentException: cannot use a recycled source in createBitmap` at `com.android.systemui.statusbar.MediaArtworkProcessor.processArtwork(MediaArtworkProcessor.kt:54)`.
+- **Cause:** an Android 10 SystemUI bug. It scales session artwork so the longer side is `max(screenW, screenH) / 6` (320 px here). When the artwork already has that size, `createScaledBitmap` returns the artwork itself, SystemUI recycles it, and the next pass crashes. Any station logo with a longer side of exactly 320 px triggers it.
+- **Fix:** `SystemUiSafeBitmapLoader` (session bitmap loader) scales such artwork up by 1 px, so SystemUI always works on a copy. Verified on the emulator: 0 SystemUI crashes in 45 s with Radio Marshall playing (about 15 before). Unit tests: `SystemUiSafeBitmapLoaderTest`.
