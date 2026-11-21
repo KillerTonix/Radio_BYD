@@ -14,6 +14,7 @@ android {
         targetSdk = 34
         versionCode = 9
         versionName = "0.5.2"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // "car": full app for the head unit. "phone": same app without the notification listener
@@ -37,6 +38,8 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    // Robolectric reads the merged assets (stations.json, stations_am.json) and resources.
+    testOptions { unitTests.isIncludeAndroidResources = true }
 }
 
 dependencies {
@@ -54,4 +57,23 @@ dependencies {
     implementation(libs.media3.exoplayer.hls)
     implementation(libs.media3.session)
     implementation(libs.kotlinx.coroutines.guava)
+
+    // JVM unit tests (Robolectric), run with ./gradlew testCarDebugUnitTest
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.truth)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.media3.test.utils)
+
+    // Instrumented tests on a device/emulator, run with ./gradlew connectedCarDebugAndroidTest
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.test.uiautomator)
+    androidTestImplementation(libs.truth)
+    androidTestImplementation(libs.okhttp.mockwebserver)
 }
