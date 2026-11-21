@@ -49,6 +49,8 @@ object FakeStreamServer {
                             .setBody(Buffer().write(tone))
                         path == "/dead/404" -> MockResponse().setResponseCode(404).setBody("not found")
                         path == "/dead/close" -> MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START)
+                        // Accepts the connection and never answers, like the black-holed hosts am:16 / am:35.
+                        path == "/dead/silent" -> MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
                         else -> MockResponse().setResponseCode(404)
                     }
                 }
@@ -65,4 +67,5 @@ object FakeStreamServer {
     fun ok(n: Int) = Station("qa:ok:$n", "QA Stream $n", url("/ok/$n.mp3"), subtitle = "QA fixture $n")
     fun dead404(n: Int = 1) = Station("qa:404:$n", "QA Dead 404 $n", url("/dead/404"), subtitle = "QA dead")
     fun deadClosed(n: Int = 1) = Station("qa:close:$n", "QA Dead Closed $n", url("/dead/close"), subtitle = "QA dead")
+    fun deadSilent(n: Int = 1) = Station("qa:silent:$n", "QA Dead Silent $n", url("/dead/silent"), subtitle = "QA dead")
 }

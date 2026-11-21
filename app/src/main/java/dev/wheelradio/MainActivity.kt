@@ -40,6 +40,8 @@ class MainActivity : ComponentActivity() {
                         else {
                             BluetoothBridge.pause()
                             BluetoothBridge.active = false
+                            // After a failed station the player is IDLE, and play() alone would do nothing.
+                            if (it.playbackState == Player.STATE_IDLE) it.prepare()
                             it.play()
                         }
                     }
@@ -68,7 +70,12 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         lifecycleScope.launch {
             val token = SessionToken(this@MainActivity, ComponentName(this@MainActivity, RadioService::class.java))
-            val c = MediaController.Builder(this@MainActivity, token).buildAsync().await()
+            val c = MediaController.Builder(this@MainActivity, token)
+                .setListener(object : MediaController.Listener {
+                    // RadioService's status line (retrying / no internet / unavailable) arrives as session extras.
+                    override fun onExtrasChanged(controller: MediaController, extras: Bundle) = refresh(controller)
+                })
+                .buildAsync().await()
             controller = c
             c.addListener(object : Player.Listener {
                 override fun onEvents(player: Player, events: Player.Events) = refresh(player)
@@ -97,6 +104,7 @@ class MainActivity : ComponentActivity() {
             buffering = p.playbackState == Player.STATE_BUFFERING,
             shuffle = p.shuffleModeEnabled,
             canShuffle = station?.local == true,
+            status = (p as? MediaController)?.sessionExtras?.getString(StreamRecovery.EXTRA_STATUS).orEmpty(),
         )
     }
 

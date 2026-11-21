@@ -52,6 +52,7 @@ private val Bg = Color(0xFF141B26)
 private val Surface1 = Color(0xFF1E2735)
 private val Accent = Color(0xFF29B6F6)
 private val TextDim = Color(0xFFB0BEC5)
+private val Warning = Color(0xFFFFB74D)
 
 private val tileGradients = listOf(
     listOf(Color(0xFFB71C1C), Color(0xFF1A237E)),
@@ -523,8 +524,15 @@ private fun MiniPlayer(model: AppModel, onPlayPause: () -> Unit, onNext: () -> U
                 now.title.ifBlank { "Nothing playing" }, fontSize = 22.sp, color = Color.White,
                 fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            val sub = if (now.buffering) "Connecting…" else now.nowPlaying
-            if (sub.isNotBlank()) Text(sub, fontSize = 16.sp, color = TextDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // A problem (retrying, no internet, station unavailable) beats "Connecting…" and the song title,
+            // so a silent radio never just looks paused.
+            val sub = when {
+                now.status.isNotBlank() -> now.status
+                now.buffering -> "Connecting…"
+                else -> now.nowPlaying
+            }
+            val subColor = if (now.status.isNotBlank()) Warning else TextDim
+            if (sub.isNotBlank()) Text(sub, fontSize = 16.sp, color = subColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (now.canShuffle) {
             IconButton(onClick = { model.setShuffle(!now.shuffle) }, modifier = Modifier.size(56.dp)) {

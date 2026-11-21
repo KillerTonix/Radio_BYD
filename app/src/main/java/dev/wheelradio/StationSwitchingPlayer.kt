@@ -11,8 +11,21 @@ import androidx.media3.common.Player
  *  - the same wheel press arriving through two routes (MediaSession + BYD broadcast)
  *    only switches one station (debounce).
  */
-class StationSwitchingPlayer(player: Player) : ForwardingPlayer(player) {
+class StationSwitchingPlayer(
+    player: Player,
+    /** Called when the user starts a new attempt (prepare on an idle player, or a station switch). */
+    private val onUserRetry: () -> Unit = {},
+) : ForwardingPlayer(player) {
     private var lastSkipAt = 0L
+
+    /**
+     * Prepare from outside (MediaController "play" on an idle player, the session's play/pause handling) is the
+     * user asking for this station again, so drop any pending automatic retry and start fresh.
+     */
+    override fun prepare() {
+        onUserRetry()
+        super.prepare()
+    }
 
     override fun seekToNext() = skip(+1, "seekToNext")
     override fun seekToNextMediaItem() = skip(+1, "seekToNextMediaItem")
@@ -40,6 +53,9 @@ class StationSwitchingPlayer(player: Player) : ForwardingPlayer(player) {
             .takeIf { it != C.INDEX_UNSET } ?: Math.floorMod(currentMediaItemIndex + direction, count)
         wrappedPlayer.seekToDefaultPosition(target)
         wrappedPlayer.playWhenReady = true
+        // After an error the player is IDLE: without this the new station only started when a stale back-off
+        // timer fired (up to 6 s), and in a one-station queue it never started.
+        if (wrappedPlayer.playbackState == Player.STATE_IDLE) prepare()
     }
 
     companion object { private const val DEBOUNCE_MS = 400L }

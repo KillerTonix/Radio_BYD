@@ -134,6 +134,21 @@ class RadioServicePlaybackTest {
         assertThat(svc.index).isEqualTo(1)
     }
 
+    /** Regression: a host that never answers used to leave "Connecting…" up for about 9 minutes. */
+    @Test fun station_that_never_answers_is_skipped_within_a_minute() {
+        val silent = FakeStreamServer.deadSilent(1)
+        val mark = keyLogMark()
+        val start = android.os.SystemClock.elapsedRealtime()
+        svc.playQueue(listOf(silent, ok1, ok2), 0)
+
+        assertWithMessage("silent station was not skipped").that(svc.waitPlaying(ok1.id, timeoutMs = 75_000)).isTrue()
+        val took = android.os.SystemClock.elapsedRealtime() - start
+        assertThat(took).isAtLeast(40_000L) // two 20 s attempts, so a slow but working station gets a fair chance
+        assertThat(took).isLessThan(70_000L)
+        assertThat(keyLogSince(mark).count { "[Player] no audio after 20 s" in it }).isEqualTo(2)
+        assertThat(svc.status).isEmpty() // cleared once the next station plays
+    }
+
     @Test fun single_dead_station_ends_in_error_without_crashing_or_skipping() {
         val dead = FakeStreamServer.dead404(2)
         val mark = keyLogMark()
@@ -143,6 +158,7 @@ class RadioServicePlaybackTest {
         assertThat(svc.index).isEqualTo(0)
         assertThat(svc.state).isEqualTo(Player.STATE_IDLE)
         assertThat(svc.onMain { it.playerError }).isNotNull()
+        assertThat(svc.status).isEqualTo(StreamRecovery.STATUS_UNAVAILABLE)
 
         // Recovers as soon as the user picks a working station.
         svc.playQueue(listOf(ok1), 0)
@@ -167,6 +183,7 @@ class RadioServicePlaybackTest {
             Thread.sleep(60_000)
             assertThat(svc.index).isEqualTo(0)
             assertThat(radioPrefs.getInt("last_index", -1)).isEqualTo(0)
+            assertThat(svc.status).isEqualTo(StreamRecovery.STATUS_NO_NETWORK)
         } finally {
             FakeStreamServer.outage = false
             shell(auto, "svc wifi enable")

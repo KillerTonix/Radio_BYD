@@ -83,6 +83,9 @@ class ServiceController : AutoCloseable {
     val isPlaying get() = onMain { it.isPlaying }
     val state get() = onMain { it.playbackState }
 
+    /** RadioService's status line for the mini player ("" when all is well). */
+    val status: String get() = onMain { it.sessionExtras.getString(StreamRecovery.EXTRA_STATUS).orEmpty() }
+
     /** What MainActivity.play() does when a row is tapped. */
     fun playQueue(list: List<Station>, index: Int = 0) = onMain {
         it.setMediaItems(list.map(Station::toMediaItem), index, C.TIME_UNSET)
