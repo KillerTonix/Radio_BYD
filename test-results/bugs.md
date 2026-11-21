@@ -110,6 +110,7 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 - **Evidence:** logcat `InvalidResponseCodeException: Response code: 404` / `401`; host probe `QA scratch folder audio/curl_results.txt`. The lists were not edited (guardrail). The owner needs to update the URLs.
 
 ## [AUDIO] Double press of Play/Pause skips to the next station
+- **Status: FIXED on branch `fix/playback-bugs`.** `RadioService` now overrides `MediaSession.Callback.onMediaButtonEvent`. Media3 calls it before its own double-tap logic, and only for ACTION_DOWN. PLAY_PAUSE and HEADSETHOOK are handled there with `Util.handlePlayPauseButtonAction` (play / pause, re-preparing an errored or ended player as Media3 did) and consumed, so a double press can no longer become "next". Each press is logged as `[Session] <key>`. Tests: `WheelKeyRouteTest.double_play_pause_never_switches_station` (enabled, passes) and the new `double_headsethook_in_background_never_switches_station`. Manual: background `input keyevent 85 85` and `79 79` stay on `SomaFM Groove Salad`.
 - **Severity:** Medium
 - **Steps:**
   1. Play any station (foreground or background).
@@ -119,6 +120,9 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 - **Evidence:** foreground `Sunshine Live - Techno` (idx 22) → `WDR 2 Rheinland` (idx 23), only `[Activity] KEYCODE_MEDIA_PLAY_PAUSE` DOWN/UP ×2 then `[Player] seekToNext`. Background: idx 20 → 21 for `85 85`, 21 → 22 for `79 79`. `audio-session-report.md` section 3. Fix direction: handle PLAY_PAUSE in the session callback / override media-button handling so a double-tap is not mapped to next.
 
 ## [AUDIO] CHANNEL_UP / CHANNEL_DOWN wheel keys do nothing unless the activity window has focus
+- **Status: PARTLY FIXED on branch `fix/playback-bugs`.**
+  - **Key log open: fixed.** The key log is now an overlay in the activity's own window instead of a `Dialog` window, so keys keep reaching `MainActivity.dispatchKeyEvent`. CHANNEL_UP/DOWN work with it open, and the log shows the real `[Activity]` route. It still closes on Close, Back or a tap outside. Tests: `WheelKeyRouteTest.channel_up_switches_station_while_key_log_dialog_is_open` (enabled, passes) and the new `MainActivityUiTest.key_log_closes_with_a_tap_outside_but_not_on_the_panel`.
+  - **App in the background: not fixable inside the app.** Android routes only media keys (`KeyEvent.isMediaSessionKey`: play, pause, next, previous, …) to a background MediaSession. CHANNEL_UP/DOWN go to whichever window has focus, so a background app never receives them. The only way to catch them would be an AccessibilityService with key filtering, which the driver has to enable by hand in Settings; that is a product decision. `channel_up_switches_station_with_the_app_in_background` stays `@Ignore`d as a platform limit. Whether this matters depends on what the BYD wheel actually sends: if it sends MEDIA_NEXT/PREVIOUS (or the `APP_REV_DATA` broadcast), the background route already works. The in-car key log will tell.
 - **Severity:** Medium (if the DiLink wheel sends CHANNEL keys; the app maps them explicitly, so the author expects it to)
 - **Steps:**
   1. Play a station. Press HOME (or swipe the app from recents, or open the in-app `Key log` dialog).
@@ -160,6 +164,7 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 - **Evidence:** `dumpsys activity broadcasts` (`Action: "APP_REV_DATA"` → dev.wheelradio, historical `BroadcastRecord{… APP_REV_DATA}`); before/after state unchanged; `logcat -s WheelRadio` empty.
 
 ## [AUDIO] Holding a wheel key in the background repeats the skip (session route ignores auto-repeat)
+- **Status: FIXED on branch `fix/playback-bugs`.** `RadioService.onMediaButtonEvent` consumes every auto-repeat DOWN (`repeatCount > 0`), the same rule `MainActivity.dispatchKeyEvent` applies, and logs `[Session] <key> held, repeats ignored` once per hold. Test: `WheelKeyRouteTest.holding_media_next_in_background_switches_one_station` (enabled, passes; a 2 s hold now moves exactly one station). Manual: background `input keyevent --longpress 87` moved exactly one station.
 - **Severity:** Low (partly inferred)
 - **Steps:** app in background → `adb shell input keyevent --longpress 87`.
 - **Expected:** one station per press, as the Activity route does (`repeatCount == 0` check).
@@ -175,9 +180,10 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 |---|---|---|
 | U7 offline queue walk (**fixed**, test now enabled) | `androidTest/RadioServicePlaybackTest.offline_outage_does_not_walk_through_the_queue` (Wi-Fi + data off via `svc`, local fake stream refusing connections, 60 s) | Failed with `expected: 0 but was: 1` before the fix; passes on `fix/playback-bugs`. |
 | U8 mini-player heart description | `androidTest/MiniPlayerAndShuffleTest.mini_player_heart_exposes_its_state` | no node `Remove from favorites` after hearting; the description stays `Favorite` |
-| [AUDIO] Double Play/Pause skips | `androidTest/WheelKeyRouteTest.double_play_pause_never_switches_station` | `expected: qa:ok:1 but was: qa:ok:2` |
-| [AUDIO] CHANNEL_UP/DOWN need window focus | `WheelKeyRouteTest.channel_up_switches_station_with_the_app_in_background`, `...channel_up_switches_station_while_key_log_dialog_is_open` | no switch within 5 s in both cases |
-| [AUDIO] Hold repeats skip in background | `WheelKeyRouteTest.holding_media_next_in_background_switches_one_station` | `expected: 1 but was: 2` |
+| [AUDIO] Double Play/Pause skips (**fixed**, test now enabled) | `androidTest/WheelKeyRouteTest.double_play_pause_never_switches_station` | Failed with `expected: qa:ok:1 but was: qa:ok:2` before the fix; passes on `fix/playback-bugs`. |
+| [AUDIO] CHANNEL_UP/DOWN with key log open (**fixed**, test now enabled) | `WheelKeyRouteTest.channel_up_switches_station_while_key_log_dialog_is_open` | Failed with no switch within 5 s before the fix; passes on `fix/playback-bugs`. |
+| [AUDIO] CHANNEL_UP/DOWN in background (**platform limit**, stays ignored) | `WheelKeyRouteTest.channel_up_switches_station_with_the_app_in_background` | No switch within 5 s; Android never routes these keys to a background app. |
+| [AUDIO] Hold repeats skip in background (**fixed**, test now enabled) | `WheelKeyRouteTest.holding_media_next_in_background_switches_one_station` | Failed with `expected: 1 but was: 2` before the fix; passes on `fix/playback-bugs`. |
 | [AUDIO] Next during back-off waits for stale timer | `test/RadioServiceRetryPolicyTest.next_during_error_back_off_starts_the_new_station_immediately` (Robolectric, fake clock) | `playbackState` stays `STATE_IDLE` (1) after `seekToNext()` |
 | [AUDIO] APP_REV_DATA frames dropped without KeyLog | `test/BydWheelKeyReceiverTest.every_app_rev_data_frame_is_logged` | 0 KeyLog lines for an `int[]` frame and a group-5 frame (expected 2) |
 

@@ -169,6 +169,17 @@ class MainActivityUiTest {
         tab("BY COUNTRIES").assertIsDisplayed() // the app stays open
     }
 
+    @Test fun key_log_closes_with_a_tap_outside_but_not_on_the_panel() {
+        compose.onNodeWithContentDescription("Key log").performClick()
+        compose.onNodeWithText("Wheel button log").performClick() // tap inside the panel
+        compose.onNodeWithText("Wheel button log").assertIsDisplayed()
+        UiDevice.getInstance(instrumentation).click(40, 300) // scrim, left of the centred panel
+        compose.waitUntil(5_000) {
+            compose.onAllNodes(hasText("Wheel button log")).fetchSemanticsNodes().isEmpty()
+        }
+        tab("BY COUNTRIES").assertIsDisplayed()
+    }
+
     @Test fun local_tab_with_permission_lists_what_media_store_has() {
         tab("LOCAL & USB").performClick()
         compose.onNodeWithText("Rescan device & USB").assertIsDisplayed()

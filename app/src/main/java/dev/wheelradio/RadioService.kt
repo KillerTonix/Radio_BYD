@@ -4,11 +4,15 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
+import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.util.Util
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -131,6 +135,36 @@ class RadioService : MediaSessionService() {
                         if (uri == null) item else item.buildUpon().setUri(uri).build()
                     }.toMutableList()
                 )
+
+                /**
+                 * Media keys routed to the session (app in the background, or keys the activity doesn't consume).
+                 * Media3 only calls this for ACTION_DOWN; returning true stops its default handling.
+                 */
+                @OptIn(UnstableApi::class)
+                override fun onMediaButtonEvent(
+                    mediaSession: MediaSession,
+                    controllerInfo: MediaSession.ControllerInfo,
+                    intent: Intent,
+                ): Boolean {
+                    @Suppress("DEPRECATION")
+                    val event = intent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT) ?: return false
+                    val name = KeyEvent.keyCodeToString(event.keyCode)
+                    if (event.repeatCount > 0) {
+                        // A held wheel key auto-repeats every ~50 ms; one press must move one station, as in the activity.
+                        if (event.repeatCount == 1) KeyLog.add("Session", "$name held, repeats ignored")
+                        return true
+                    }
+                    KeyLog.add("Session", name)
+                    return when (event.keyCode) {
+                        // Media3 maps a PLAY_PAUSE / HEADSETHOOK double-tap to "next". On a steering wheel a quick
+                        // double press, a bouncing switch or one press delivered twice must never change the station.
+                        KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> {
+                            Util.handlePlayPauseButtonAction(player)
+                            true
+                        }
+                        else -> false // next / previous / play / pause: Media3's default, through StationSwitchingPlayer
+                    }
+                }
             })
             .build()
 

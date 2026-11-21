@@ -11,6 +11,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
@@ -139,17 +140,38 @@ class WheelKeyRouteTest {
         assertThat(svc.isPlaying).isTrue()
     }
 
-    // ---- confirmed bugs, kept as executable documentation ----
+    // ---- regressions for bugs found by the QA pipeline (see test-results/bugs.md) ----
 
-    @Ignore("Known bug [AUDIO] Double press of Play/Pause skips to the next station - see test-results/bugs.md")
+    /** Media3 maps a PLAY_PAUSE double-tap to "next"; RadioService.onMediaButtonEvent now handles PLAY_PAUSE itself. */
     @Test fun double_play_pause_never_switches_station() {
+        val mark = keyLogMark()
         key(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
         key(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
         Thread.sleep(2_000)
         assertThat(svc.mediaId).isEqualTo(queue[0].id)
+        assertThat(keyLogSince(mark).none { it.endsWith("[Player] seekToNext") }).isTrue()
+        assertThat(keyLogSince(mark).count { "[Session] KEYCODE_MEDIA_PLAY_PAUSE" in it }).isEqualTo(2)
     }
 
-    @Ignore("Known bug [AUDIO] CHANNEL_UP / CHANNEL_DOWN wheel keys do nothing unless the activity window has focus - see test-results/bugs.md")
+    @Test fun double_headsethook_in_background_never_switches_station() {
+        val device = UiDevice.getInstance(instrumentation)
+        device.pressHome()
+        Thread.sleep(1_500)
+        val mark = keyLogMark()
+        // UiDevice injects system-wide (instrumentation.sendKeyDownUpSync can't reach the launcher's window).
+        device.pressKeyCode(KeyEvent.KEYCODE_HEADSETHOOK)
+        device.pressKeyCode(KeyEvent.KEYCODE_HEADSETHOOK)
+        Thread.sleep(2_000)
+        assertThat(keyLogSince(mark).count { "[Session] KEYCODE_HEADSETHOOK" in it }).isEqualTo(2)
+        assertThat(svc.mediaId).isEqualTo(queue[0].id)
+    }
+
+    /**
+     * Not fixable inside the app: Android only routes media keys (PLAY/PAUSE/NEXT/PREVIOUS/…) to a background
+     * MediaSession. CHANNEL_UP/DOWN are ordinary keys that go to whichever window has focus, so a background app
+     * never sees them. Catching them would need an AccessibilityService that the driver enables by hand.
+     */
+    @Ignore("Platform limit: CHANNEL_UP/DOWN are not media keys and never reach a background app - see test-results/bugs.md")
     @Test fun channel_up_switches_station_with_the_app_in_background() {
         val device = UiDevice.getInstance(instrumentation)
         device.pressHome()
@@ -158,12 +180,16 @@ class WheelKeyRouteTest {
         assertWithMessage("CHANNEL_UP in background").that(pollUntil(5_000) { svc.index == 1 }).isTrue()
     }
 
-    @Ignore("Known bug [AUDIO] CHANNEL_UP / CHANNEL_DOWN wheel keys do nothing unless the activity window has focus (Key log dialog open) - see test-results/bugs.md")
+    /** The key log used to be a Dialog window that took key focus; it is now an overlay in the activity's window. */
     @Test fun channel_up_switches_station_while_key_log_dialog_is_open() {
         compose.onNodeWithContentDescription("Key log").performClick()
         compose.waitUntil(5_000) { compose.onAllNodes(hasText("Wheel button log")).fetchSemanticsNodes().isNotEmpty() }
+        val mark = keyLogMark()
         UiDevice.getInstance(instrumentation).pressKeyCode(KeyEvent.KEYCODE_CHANNEL_UP)
         assertWithMessage("CHANNEL_UP with dialog open").that(pollUntil(5_000) { svc.index == 1 }).isTrue()
+        // The diagnostic screen must show the route the key really took.
+        assertThat(keyLogSince(mark).any { "[Activity] KEYCODE_CHANNEL_UP DOWN" in it }).isTrue()
+        compose.onNodeWithText("Wheel button log").assertIsDisplayed()
     }
 
     /**
@@ -192,13 +218,15 @@ class WheelKeyRouteTest {
         assertSettlesOn(1)
     }
 
-    @Ignore("Known bug [AUDIO] Holding a wheel key in the background repeats the skip - see test-results/bugs.md")
+    /** RadioService.onMediaButtonEvent now drops auto-repeat DOWNs, like MainActivity.dispatchKeyEvent does. */
     @Test fun holding_media_next_in_background_switches_one_station() {
         UiDevice.getInstance(instrumentation).pressHome()
         Thread.sleep(1_500)
+        val mark = keyLogMark()
         holdKey(KeyEvent.KEYCODE_MEDIA_NEXT)
         Thread.sleep(1_500)
         assertThat(svc.index).isEqualTo(1)
+        assertThat(keyLogSince(mark).count { "held, repeats ignored" in it }).isEqualTo(1) // logged once, not per repeat
     }
 
     @Test fun media_next_works_with_the_app_in_background() {
