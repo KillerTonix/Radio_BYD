@@ -4,11 +4,15 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
+import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.util.Util
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -25,6 +29,11 @@ class RadioService : MediaSessionService() {
     private lateinit var bydReceiver: BydWheelKeyReceiver
     private val handler = Handler(Looper.getMainLooper())
     private var retries = 0
+    private lateinit var network: NetworkMonitor
+
+    /** True while a stream failed because the car is offline; we keep the station and retry when the network returns. */
+    private var waitingForNetwork = false
+    private var pendingRetry: Runnable? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -49,17 +58,44 @@ class RadioService : MediaSessionService() {
             repo.lastIndex.coerceIn(0, (queue.size - 1).coerceAtLeast(0)),
             C.TIME_UNSET
         )
+        network = NetworkMonitor(this, handler) {
+            // Connectivity is back: give the station the driver was listening to a fresh set of retries.
+            if (waitingForNetwork) {
+                waitingForNetwork = false
+                retries = 0
+                KeyLog.add("Player", "network back, retrying the same station")
+                exo.prepare()
+            }
+        }
+        network.start()
+
         exo.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 repo.lastIndex = exo.currentMediaItemIndex
                 retries = 0
+                waitingForNetwork = false
             }
             override fun onPlayerError(error: PlaybackException) {
                 KeyLog.add("Player", "error: ${error.errorCodeName}")
+                pendingRetry?.let(handler::removeCallbacks)
+                pendingRetry = null
+                // Only network streams can be fixed by waiting for the network; local / USB files (content://, file://) can't.
+                val scheme = exo.currentMediaItem?.localConfiguration?.uri?.scheme?.lowercase()
+                val streaming = scheme == "http" || scheme == "https"
+                if (streaming && !network.isOnline()) {
+                    // No network at all (tunnel, car park, dead zone): every station would fail the same way, so
+                    // skipping would only walk through the queue and lose the driver's station. Wait instead.
+                    waitingForNetwork = true
+                    retries = 0
+                    KeyLog.add("Player", "offline, keeping the station until the network returns")
+                    return
+                }
                 if (retries < 3) {
                     // Mobile data in a moving car drops out; retry with backoff.
                     retries++
-                    handler.postDelayed({ exo.prepare() }, 2_000L * retries)
+                    val retry = Runnable { pendingRetry = null; exo.prepare() }
+                    pendingRetry = retry
+                    handler.postDelayed(retry, 2_000L * retries)
                 } else if (exo.mediaItemCount > 1) {
                     // Station looks dead: move on so the driver isn't left with silence.
                     retries = 0
@@ -99,6 +135,36 @@ class RadioService : MediaSessionService() {
                         if (uri == null) item else item.buildUpon().setUri(uri).build()
                     }.toMutableList()
                 )
+
+                /**
+                 * Media keys routed to the session (app in the background, or keys the activity doesn't consume).
+                 * Media3 only calls this for ACTION_DOWN; returning true stops its default handling.
+                 */
+                @OptIn(UnstableApi::class)
+                override fun onMediaButtonEvent(
+                    mediaSession: MediaSession,
+                    controllerInfo: MediaSession.ControllerInfo,
+                    intent: Intent,
+                ): Boolean {
+                    @Suppress("DEPRECATION")
+                    val event = intent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT) ?: return false
+                    val name = KeyEvent.keyCodeToString(event.keyCode)
+                    if (event.repeatCount > 0) {
+                        // A held wheel key auto-repeats every ~50 ms; one press must move one station, as in the activity.
+                        if (event.repeatCount == 1) KeyLog.add("Session", "$name held, repeats ignored")
+                        return true
+                    }
+                    KeyLog.add("Session", name)
+                    return when (event.keyCode) {
+                        // Media3 maps a PLAY_PAUSE / HEADSETHOOK double-tap to "next". On a steering wheel a quick
+                        // double press, a bouncing switch or one press delivered twice must never change the station.
+                        KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> {
+                            Util.handlePlayPauseButtonAction(player)
+                            true
+                        }
+                        else -> false // next / previous / play / pause: Media3's default, through StationSwitchingPlayer
+                    }
+                }
             })
             .build()
 
@@ -113,6 +179,7 @@ class RadioService : MediaSessionService() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        network.stop()
         bydReceiver.unregister(this)
         session?.run {
             player.release()

@@ -13,6 +13,14 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
       - run: chmod +x gradlew && ./gradlew assembleDebug
+      # Hermetic JVM/Robolectric tests: no live streams or Radio Browser calls, so CI never depends on stream uptime.
+      # Instrumented tests (connectedCarDebugAndroidTest) need an emulator and are run locally only.
+      - run: ./gradlew testCarDebugUnitTest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests/testCarDebugUnitTest/
       - uses: actions/upload-artifact@v4
         with:
           name: wheel-radio-debug-apk

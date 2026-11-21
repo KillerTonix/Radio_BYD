@@ -36,6 +36,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -43,7 +45,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import coil.compose.SubcomposeAsyncImage
 
@@ -73,38 +74,41 @@ fun WheelRadioApp(
 ) {
     MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Bg, surface = Surface1)) {
         BackHandler(enabled = model.openCountry != null) { model.openCountry = null }
-        Column(Modifier.fillMaxSize().background(Bg)) {
-            TopBar(model)
-            TabRow(
-                selectedTabIndex = model.tab.ordinal,
-                containerColor = Bg,
-                contentColor = Accent,
-            ) {
-                AppTab.entries.forEach { t ->
-                    Tab(
-                        selected = model.tab == t,
-                        onClick = { model.tab = t },
-                        text = {
-                            Text(
-                                t.title.uppercase(), fontSize = 18.sp,
-                                color = if (model.tab == t) Accent else TextDim,
-                                maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
-                            )
-                        },
-                    )
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().background(Bg)) {
+                TopBar(model)
+                TabRow(
+                    selectedTabIndex = model.tab.ordinal,
+                    containerColor = Bg,
+                    contentColor = Accent,
+                ) {
+                    AppTab.entries.forEach { t ->
+                        Tab(
+                            selected = model.tab == t,
+                            onClick = { model.tab = t },
+                            text = {
+                                Text(
+                                    t.title.uppercase(), fontSize = 18.sp,
+                                    color = if (model.tab == t) Accent else TextDim,
+                                    maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                        )
+                    }
                 }
-            }
-            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
-                when (model.tab) {
-                    AppTab.COUNTRIES -> CountriesTab(model)
-                    AppTab.FAVORITES -> FavoritesTab(model)
-                    AppTab.LOCAL -> LocalTab(model)
-                    AppTab.BLUETOOTH -> BluetoothTab(model)
+                Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
+                    when (model.tab) {
+                        AppTab.COUNTRIES -> CountriesTab(model)
+                        AppTab.FAVORITES -> FavoritesTab(model)
+                        AppTab.LOCAL -> LocalTab(model)
+                        AppTab.BLUETOOTH -> BluetoothTab(model)
+                    }
                 }
+                MiniPlayer(model, onPlayPause, onNext, onPrevious)
             }
-            MiniPlayer(model, onPlayPause, onNext, onPrevious)
+            // Overlay in the same window, so wheel keys keep reaching MainActivity while the log is open.
+            if (model.showKeyLog) KeyLogDialog { model.showKeyLog = false }
         }
-        if (model.showKeyLog) KeyLogDialog { model.showKeyLog = false }
     }
 }
 
@@ -571,13 +575,25 @@ private fun Centered(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) { content() }
 }
 
+/**
+ * Drawn inside the activity's own window rather than as a Dialog: a Dialog is a separate window that takes key
+ * focus, so wheel keys went to it instead of MainActivity.dispatchKeyEvent. CHANNEL_UP/DOWN were then lost and
+ * the [Activity] route never showed up in the very log meant to reveal it. Closes on Close, Back, or a tap outside.
+ */
 @Composable
 private fun KeyLogDialog(onClose: () -> Unit) {
     val log by KeyLog.entries.collectAsState()
-    Dialog(onDismissRequest = onClose) {
+    BackHandler(onBack = onClose)
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f))
+            .pointerInput(Unit) { detectTapGestures { onClose() } },
+        contentAlignment = Alignment.Center,
+    ) {
         Column(
-            Modifier.fillMaxWidth().heightIn(max = 560.dp)
-                .clip(RoundedCornerShape(16.dp)).background(Surface1).padding(20.dp)
+            Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(24.dp).heightIn(max = 560.dp)
+                .clip(RoundedCornerShape(16.dp)).background(Surface1)
+                .pointerInput(Unit) { detectTapGestures { } } // taps on the panel don't close it
+                .padding(20.dp)
         ) {
             Text("Wheel button log", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Text("Press the wheel buttons; each press shows up here.", fontSize = 15.sp, color = TextDim)
