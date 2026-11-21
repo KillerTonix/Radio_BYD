@@ -2,6 +2,8 @@ package dev.wheelradio
 
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Looper
 import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
@@ -17,6 +19,8 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ServiceController
+import org.robolectric.shadows.ShadowNetwork
+import org.robolectric.shadows.ShadowNetworkCapabilities
 import java.time.Duration
 
 /**
@@ -115,6 +119,45 @@ class RadioServiceRetryPolicyTest {
         assertThat(player.playbackState).isEqualTo(Player.STATE_IDLE)
         assertThat(player.playerError).isNotNull()
     }
+
+    /**
+     * U7: with no network, a failing stream must not be retried into a skip. The default network is given
+     * no INTERNET capability (= offline), and 127.0.0.1:9 refuses connections, so this stays hermetic.
+     */
+    @Test fun offline_stream_errors_keep_the_station_and_retry_when_the_network_returns() {
+        val cm = context.getSystemService(ConnectivityManager::class.java)
+        shadowOf(cm).setNetworkCapabilities(cm.activeNetwork, ShadowNetworkCapabilities.newInstance())
+        assertThat(cm.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ?: false).isFalse()
+        StationRepository(context).apply {
+            queue = (0 until 3).map { Station("net:$it", "Net $it", "http://127.0.0.1:9/qa_$it.mp3") }
+            lastIndex = 0
+            shuffle = false
+        }
+        logBefore = KeyLog.entries.value.firstOrNull()
+        controller = Robolectric.buildService(RadioService::class.java).create()
+        player = sessionPlayer(controller.get())
+
+        assertThat(runUntil(10_000) { player.playerError != null }).isLessThan(10_000L)
+        runUntil(40_000) { false } // well past the old 2 + 4 + 6 s back-off and skip
+        assertThat(player.currentMediaItemIndex).isEqualTo(0)
+        assertThat(StationRepository(context).lastIndex).isEqualTo(0)
+        assertThat(errorLines()).hasSize(1) // no retries while offline
+        assertThat(newLog().any { "offline, keeping the station" in it }).isTrue()
+
+        // Network comes back: the same station is retried, not the next one.
+        val caps = ShadowNetworkCapabilities.newInstance()
+        shadowOf(caps).addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        val callbacks = shadowOf(cm).networkCallbacks
+        assertWithMessage("RadioService registered no network callback").that(callbacks).isNotEmpty()
+        callbacks.forEach { it.onCapabilitiesChanged(ShadowNetwork.newInstance(1), caps) }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertThat(newLog().any { "network back, retrying the same station" in it }).isTrue()
+        runUntil(5_000) { errorLines().size >= 2 }
+        assertThat(errorLines().size).isAtLeast(2) // it really tried the stream again
+        assertThat(player.currentMediaItemIndex).isEqualTo(0)
+    }
+
+    private fun newLog() = KeyLog.entries.value.takeWhile { it != logBefore }
 
     @Test fun byd_next_frame_switches_the_service_player_once() {
         startService(queueSize = 3)

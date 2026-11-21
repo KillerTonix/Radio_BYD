@@ -25,6 +25,11 @@ class RadioService : MediaSessionService() {
     private lateinit var bydReceiver: BydWheelKeyReceiver
     private val handler = Handler(Looper.getMainLooper())
     private var retries = 0
+    private lateinit var network: NetworkMonitor
+
+    /** True while a stream failed because the car is offline; we keep the station and retry when the network returns. */
+    private var waitingForNetwork = false
+    private var pendingRetry: Runnable? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -49,17 +54,44 @@ class RadioService : MediaSessionService() {
             repo.lastIndex.coerceIn(0, (queue.size - 1).coerceAtLeast(0)),
             C.TIME_UNSET
         )
+        network = NetworkMonitor(this, handler) {
+            // Connectivity is back: give the station the driver was listening to a fresh set of retries.
+            if (waitingForNetwork) {
+                waitingForNetwork = false
+                retries = 0
+                KeyLog.add("Player", "network back, retrying the same station")
+                exo.prepare()
+            }
+        }
+        network.start()
+
         exo.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 repo.lastIndex = exo.currentMediaItemIndex
                 retries = 0
+                waitingForNetwork = false
             }
             override fun onPlayerError(error: PlaybackException) {
                 KeyLog.add("Player", "error: ${error.errorCodeName}")
+                pendingRetry?.let(handler::removeCallbacks)
+                pendingRetry = null
+                // Only network streams can be fixed by waiting for the network; local / USB files (content://, file://) can't.
+                val scheme = exo.currentMediaItem?.localConfiguration?.uri?.scheme?.lowercase()
+                val streaming = scheme == "http" || scheme == "https"
+                if (streaming && !network.isOnline()) {
+                    // No network at all (tunnel, car park, dead zone): every station would fail the same way, so
+                    // skipping would only walk through the queue and lose the driver's station. Wait instead.
+                    waitingForNetwork = true
+                    retries = 0
+                    KeyLog.add("Player", "offline, keeping the station until the network returns")
+                    return
+                }
                 if (retries < 3) {
                     // Mobile data in a moving car drops out; retry with backoff.
                     retries++
-                    handler.postDelayed({ exo.prepare() }, 2_000L * retries)
+                    val retry = Runnable { pendingRetry = null; exo.prepare() }
+                    pendingRetry = retry
+                    handler.postDelayed(retry, 2_000L * retries)
                 } else if (exo.mediaItemCount > 1) {
                     // Station looks dead: move on so the driver isn't left with silence.
                     retries = 0
@@ -113,6 +145,7 @@ class RadioService : MediaSessionService() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        network.stop()
         bydReceiver.unregister(this)
         session?.run {
             player.release()

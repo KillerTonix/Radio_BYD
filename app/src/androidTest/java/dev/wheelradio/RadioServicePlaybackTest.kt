@@ -9,7 +9,6 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -151,11 +150,10 @@ class RadioServicePlaybackTest {
     }
 
     /**
-     * U7: while the device is offline, every station fails, so RadioService skips through the queue and
-     * overwrites last_index. Expected: keep (or pause on) the user's station until connectivity returns.
+     * U7 regression: while the device is offline every station fails, and RadioService used to skip through the
+     * queue and overwrite last_index. It must keep the user's station until connectivity returns.
      * Repro: Wi-Fi and mobile data off (no default network) and the fake stream refusing connections.
      */
-    @Ignore("Known bug U7 - offline, the player walks through the queue and loses the station - see test-results/bugs.md")
     @Test fun offline_outage_does_not_walk_through_the_queue() {
         svc.playQueue(listOf(ok1, ok2, ok3), 0)
         assertThat(svc.waitPlaying(ok1.id)).isTrue()

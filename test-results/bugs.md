@@ -53,7 +53,11 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 - **Evidence:** `grep setMusicFolder` → only its definition in `AppModel.kt`; `L42_local_after_rescan.png`.
 
 ## [UI] Offline, the player walks through the whole queue and the last station is lost
-- **Severity:** Medium (needs confirmation by audio-session-tester)
+- **Status: FIXED on branch `fix/playback-bugs`.** `RadioService.onPlayerError` now asks the new `NetworkMonitor` whether the default network has internet. If a network stream (`http`/`https`) fails while offline, it keeps the station, schedules no retries and does not skip; when connectivity returns it retries the same station with a fresh set of retries. With the network up, the old 3-retries-then-skip rule is unchanged, so dead stations are still skipped. Local/USB files never wait for the network.
+  - Regression tests: `androidTest/RadioServicePlaybackTest.offline_outage_does_not_walk_through_the_queue` (no longer `@Ignore`d, passes), and the new hermetic JVM test `test/RadioServiceRetryPolicyTest.offline_stream_errors_keep_the_station_and_retry_when_the_network_returns`, which fails without the fix (`expected: 0 but was: 1`).
+  - Manual check on the emulator: `SomaFM Groove Salad` playing, Wi-Fi + data off for 60 s (session goes to ERROR, the station is kept, key log `offline, keeping the station until the network returns`), network back on, and the same station is PLAYING again within 1 s (`network back, retrying the same station`).
+  - Remaining gap: a network that keeps its INTERNET capability but carries no data (weak cellular signal) still looks "online", so the old retry/skip rule applies there. During the outage the UI shows no "waiting for network" state; that belongs to the separate "no error state" bug below.
+- **Severity:** High for a car (raised from Medium after step 2's confirmation)
 - **Steps:**
   1. Play `SWR3` from the Germany list (queue index 1).
   2. Disable wifi and data. Force-stop and relaunch (or just wait). Wait ~60 s.
@@ -169,7 +173,7 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 
 | Bug | Test | Observed failure when un-ignored |
 |---|---|---|
-| U7 offline queue walk | `androidTest/RadioServicePlaybackTest.offline_outage_does_not_walk_through_the_queue` (Wi-Fi + data off via `svc`, local fake stream refusing connections, 60 s) | `expected: 0 but was: 1`. **First hermetic reproduction**: no live stream needed. |
+| U7 offline queue walk (**fixed**, test now enabled) | `androidTest/RadioServicePlaybackTest.offline_outage_does_not_walk_through_the_queue` (Wi-Fi + data off via `svc`, local fake stream refusing connections, 60 s) | Failed with `expected: 0 but was: 1` before the fix; passes on `fix/playback-bugs`. |
 | U8 mini-player heart description | `androidTest/MiniPlayerAndShuffleTest.mini_player_heart_exposes_its_state` | no node `Remove from favorites` after hearting; the description stays `Favorite` |
 | [AUDIO] Double Play/Pause skips | `androidTest/WheelKeyRouteTest.double_play_pause_never_switches_station` | `expected: qa:ok:1 but was: qa:ok:2` |
 | [AUDIO] CHANNEL_UP/DOWN need window focus | `WheelKeyRouteTest.channel_up_switches_station_with_the_app_in_background`, `...channel_up_switches_station_while_key_log_dialog_is_open` | no switch within 5 s in both cases |
