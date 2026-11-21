@@ -12,8 +12,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class AppTab(val title: String) {
-    COUNTRIES("Radio"), FAVORITES("Favorites"), LOCAL("Music"), BLUETOOTH("Bluetooth")
+enum class AppTab(@androidx.annotation.StringRes val title: Int) {
+    COUNTRIES(R.string.tab_radio), FAVORITES(R.string.tab_favorites), LOCAL(R.string.tab_music), BLUETOOTH(R.string.tab_bluetooth)
 }
 
 data class NowPlaying(
@@ -33,6 +33,7 @@ data class NowPlaying(
 class AppModel(context: Context, private val scope: CoroutineScope) {
     private val appContext = context.applicationContext
     private val repo = StationRepository(appContext)
+    val settings = AppSettings(appContext)
 
     /** Set by the activity: replace the play queue and start playing at index. */
     var playList: (List<Station>, Int) -> Unit = { _, _ -> }
@@ -50,6 +51,7 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
     var query by mutableStateOf("")
         private set
     var showKeyLog by mutableStateOf(false)
+    var showSettings by mutableStateOf(false)
     var now by mutableStateOf(NowPlaying())
 
     var countries by mutableStateOf<List<Country>>(emptyList())
@@ -95,7 +97,7 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
         scope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
-                    RadioBrowser.countries().map { c ->
+                    RadioBrowser.countries(settings.homeCountry).map { c ->
                         val extra = CuratedStations.forCountry(appContext, c.code).size
                         if (extra > 0) c.copy(stationCount = c.stationCount + extra) else c
                     }
@@ -156,6 +158,12 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
                 .onFailure { searchResults = emptyList() }
             searching = false
         }
+    }
+
+    /** Pin [code] first in the country grid, without reloading the directory. */
+    fun setHomeCountry(code: String) {
+        settings.updateHomeCountry(code)
+        countries = RadioBrowser.sortCountries(countries, code)
     }
 
     fun isFavorite(id: String?) = id != null && favorites.any { it.id == id }

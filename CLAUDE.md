@@ -8,13 +8,15 @@ Drive the app on an emulator with adb (or the `android-emulator` MCP tools) and 
 ## Where things live
 | Concern | Location |
 |---|---|
-| Screens, tabs (`Radio` (by countries), `Favorites` (Radio / Songs sections), `Music` (local & USB), `Bluetooth`), mini player, key log | `Ui.kt`, `AppModel.kt` |
+| Screens, tabs (`Radio` (by countries), `Favorites` (Radio / Songs sections), `Music` (local & USB), `Bluetooth`), mini player, Settings page (gear), key log (inside Settings) | `Ui.kt`, `AppModel.kt` |
+| Settings: language, UI size, theme, auto-play, weak-coverage mode, home country | `AppSettings.kt` |
+| UI text: English, Russian, Armenian. **Every new string goes into all three files** (`AppSettingsTest` fails otherwise) | `res/values/`, `values-ru/`, `values-hy/` `strings.xml` |
 | Playback, retry/skip on errors, `last_index` persistence | `RadioService.kt` |
 | Next/previous = station switch, 400 ms debounce across key routes | `StationSwitchingPlayer.kt` |
 | Wheel key routes: focused window (`MainActivity.dispatchKeyEvent`), MediaSession media buttons, BYD broadcast `APP_REV_DATA` byte[] `[4,1,code]` | `MainActivity.kt`, `RadioService.kt`, `BydWheelKeyReceiver.kt` |
 | Station directory (live Radio Browser API) | `RadioBrowser.kt` |
 | Station lists: starter `stations.json`, curated `stations_am.json` (46 Armenian, merged first) | `app/src/main/assets/`, `CuratedStations.kt` |
-| Persistence: SharedPreferences `radio` (`favorites`, `queue`, `last_index`, `shuffle`, `music_folder`) | `StationRepository.kt` |
+| Persistence: SharedPreferences `radio` (`favorites`, `queue`, `last_index`, `shuffle`, `music_folder`; settings: `language`, `ui_size`, `theme`, `autoplay`, `weak_coverage`, `home_country`) | `StationRepository.kt`, `AppSettings.kt` |
 | Local / USB music (MediaStore scan) | `LocalMusic.kt` |
 
 All sources are in `app/src/main/java/dev/wheelradio/`. The UI has **no `testTag`s or resource ids**, so tests select by text or contentDescription.

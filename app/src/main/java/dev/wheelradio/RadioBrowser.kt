@@ -19,10 +19,19 @@ object RadioBrowser {
     )
     private var workingServer: String? = null
 
-    /** Countries pinned to the top of the grid, in this order. */
+    /** Countries pinned to the top of the grid, in this order, after the user's home country. */
     private val pinned = listOf("AM", "RU", "DE", "US", "GE", "FR")
 
-    fun countries(): List<Country> {
+    /** Home country first, then the other pinned ones, then the rest by number of stations. */
+    fun sortCountries(countries: List<Country>, home: String): List<Country> {
+        val order = listOf(home) + pinned.filter { it != home }
+        return countries.sortedWith(
+            compareBy<Country> { order.indexOf(it.code).let { i -> if (i < 0) Int.MAX_VALUE else i } }
+                .thenByDescending { it.stationCount }
+        )
+    }
+
+    fun countries(home: String = pinned.first()): List<Country> {
         val arr = JSONArray(get("/json/countries"))
         val byCode = HashMap<String, Int>()
         for (i in 0 until arr.length()) {
@@ -31,13 +40,12 @@ object RadioBrowser {
             if (code.length != 2 || !code.all { it in 'A'..'Z' }) continue
             byCode[code] = (byCode[code] ?: 0) + o.optInt("stationcount")
         }
-        return byCode.filter { it.value > 0 }
+        val all = byCode.filter { it.value > 0 }
             .map { (code, count) ->
                 val name = Locale("", code).getDisplayCountry(Locale.ENGLISH).ifBlank { code }
                 Country(code, name, count)
             }
-            .sortedWith(compareBy<Country> { pinned.indexOf(it.code).let { i -> if (i < 0) Int.MAX_VALUE else i } }
-                .thenByDescending { it.stationCount })
+        return sortCountries(all, home)
     }
 
     fun stationsByCountry(code: String): List<Station> =

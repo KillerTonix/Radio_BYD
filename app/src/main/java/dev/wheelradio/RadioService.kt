@@ -59,7 +59,12 @@ class RadioService : MediaSessionService() {
         )
         // Retries, skips, the no-audio watchdog and the offline wait (see StreamRecovery). Its status line
         // travels to the UI in the session extras.
-        recovery = StreamRecovery(exo, handler, isOnline = { network.isOnline() }) { status ->
+        recovery = StreamRecovery(
+            exo, handler,
+            isOnline = { network.isOnline() },
+            resources = { AppSettings.localizedResources(this) },
+            firstAudioTimeoutMs = { AppSettings.firstAudioTimeoutMs(this) },
+        ) { status ->
             session?.setSessionExtras(Bundle().apply { putString(StreamRecovery.EXTRA_STATUS, status) })
         }
         network = NetworkMonitor(this, handler) { recovery.onNetworkBack() }
@@ -77,8 +82,12 @@ class RadioService : MediaSessionService() {
                 if (isPlaying) BluetoothBridge.active = false // our player is the source again
             }
         })
-        exo.prepare()
-        exo.playWhenReady = true // resume the last station when the app starts, like a car radio
+        // Resume the last station when the app starts, like a car radio, unless the user turned that off. Without
+        // auto-play the player stays idle (no network use); Play, Next and Previous prepare it on demand.
+        if (AppSettings.autoplay(this)) {
+            exo.prepare()
+            exo.playWhenReady = true
+        }
 
         // Play on an idle player and Next / Previous (from the UI, the session or the wheel) come through here.
         val player = StationSwitchingPlayer(exo, onUserRetry = recovery::onUserRetry)

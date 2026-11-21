@@ -1,3 +1,105 @@
 <resources>
-    <string name="app_name">Wheel Radio</string>
+    <string name="app_name" translatable="false">Wheel Radio</string>
+
+    <!-- Tabs (shown in capitals) -->
+    <string name="tab_radio">Radio</string>
+    <string name="tab_favorites">Favorites</string>
+    <string name="tab_music">Music</string>
+    <string name="tab_bluetooth">Bluetooth</string>
+
+    <!-- Top bar -->
+    <string name="search_hint">Search stations, countries, files…</string>
+    <string name="clear_search">Clear search</string>
+    <string name="settings">Settings</string>
+
+    <!-- Radio -->
+    <string name="countries_error">Couldn\'t load countries. Check the internet connection.</string>
+    <string name="stations_error">Couldn\'t load stations.</string>
+    <string name="try_again">Try again</string>
+    <plurals name="station_count">
+        <item quantity="one">%d Station</item>
+        <item quantity="other">%d Stations</item>
+    </plurals>
+    <string name="play_country">Play %s</string>
+    <string name="back">Back</string>
+    <string name="no_stations">No stations found.</string>
+    <string name="no_match">No stations match \"%s\".</string>
+
+    <!-- Favorites -->
+    <string name="fav_section_radio">Radio (%d)</string>
+    <string name="fav_section_songs">Songs (%d)</string>
+    <string name="shuffle_favorite_songs">Shuffle favorite songs (%d)</string>
+    <string name="favorites_empty">No favorites yet. Tap the heart next to a station to add it here.</string>
+    <string name="favorite_songs_empty">No favorite songs yet. Tap the heart next to a song in Music to add it here.</string>
+
+    <!-- Music -->
+    <string name="rescan">Rescan device &amp; USB</string>
+    <string name="allow_music">Allow access to music</string>
+    <string name="shuffle_all">Shuffle all (%d)</string>
+    <string name="music_needs_access">Allow access so the app can find music on the car and on USB sticks.</string>
+    <string name="music_empty">No audio files found. Plug in a USB stick and tap Rescan.</string>
+
+    <!-- Bluetooth -->
+    <string name="bt_from_phone">From your phone · %s</string>
+    <string name="bt_previous_song">Previous song</string>
+    <string name="bt_next_song">Next song</string>
+    <string name="bt_wheel_active">Wheel buttons control Bluetooth music.</string>
+    <string name="bt_press_play">Press play here to use the wheel buttons for Bluetooth.</string>
+    <string name="bt_not_found">No Bluetooth music found.</string>
+    <string name="bt_not_found_hint">Connect your phone, start music on it (or in the car\'s Bluetooth music app), then tap Retry.</string>
+    <string name="retry">Retry</string>
+    <string name="bt_setup_title">One-time setup needed</string>
+    <string name="bt_setup_text">To control Bluetooth music, Wheel Radio needs notification access. Turn it on in settings, or run this once over ADB:</string>
+    <string name="open_settings">Open settings</string>
+    <string name="bt_open_car_app">Open the car\'s Bluetooth music</string>
+    <string name="bt_open_car_app_hint">Use this if your phone doesn\'t offer the car for music. Then come back here.</string>
+    <string name="bt_car_app_not_found">Couldn\'t find it automatically. Open Bluetooth music from the car\'s own menu.</string>
+
+    <!-- Player -->
+    <string name="nothing_playing">Nothing playing</string>
+    <string name="connecting">Connecting…</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="next">Next</string>
+    <string name="previous">Previous</string>
+    <string name="shuffle_on">Shuffle on</string>
+    <string name="shuffle_off">Shuffle off</string>
+    <string name="add_favorite">Add to favorites</string>
+    <string name="remove_favorite">Remove from favorites</string>
+
+    <!-- Playback status, from RadioService -->
+    <string name="status_retrying">Can\'t reach the station – retrying (%1$d/%2$d)…</string>
+    <string name="status_no_network">No internet – the station resumes when it\'s back</string>
+    <string name="status_unavailable">Station unavailable – press Play to try again</string>
+
+    <!-- Wheel button log -->
+    <string name="keylog_title">Wheel button log</string>
+    <string name="keylog_hint">Press the wheel buttons; each press shows up here.</string>
+    <string name="close">Close</string>
+
+    <!-- Settings -->
+    <string name="settings_language">Language</string>
+    <string name="settings_ui_size">Screen size</string>
+    <string name="settings_ui_size_hint">Makes text, buttons and lists larger or smaller.</string>
+    <string name="ui_size_small">Small</string>
+    <string name="ui_size_normal">Normal</string>
+    <string name="ui_size_large">Large</string>
+    <string name="ui_size_xlarge">Extra large</string>
+    <string name="settings_theme">Theme</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_auto">Auto</string>
+    <string name="theme_auto_hint">Auto: dark from 19:00 to 7:00, and whenever the car switches to night mode.</string>
+    <string name="settings_playback">Playback</string>
+    <string name="settings_autoplay">Auto-play on start</string>
+    <string name="settings_autoplay_hint">Resume the last station when the car starts.</string>
+    <string name="settings_weak_coverage">Weak-coverage mode</string>
+    <string name="settings_weak_coverage_hint">Give each station 40 s instead of 20 s to start before retrying or skipping. Helps on poor mobile data.</string>
+    <string name="settings_home_country">Home country</string>
+    <string name="settings_home_country_hint">Shown first in Radio.</string>
+    <string name="choose_country">Choose your home country</string>
+    <string name="cancel">Cancel</string>
+    <string name="settings_diagnostics">Diagnostics</string>
+    <string name="open_keylog">Show wheel button log</string>
+    <string name="settings_version">Version %s</string>
 </resources>

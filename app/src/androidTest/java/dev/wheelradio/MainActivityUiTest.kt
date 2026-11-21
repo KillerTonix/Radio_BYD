@@ -34,7 +34,7 @@ annotation class SeededFavorites
 /**
  * Compose UI on the 1920x1080 landscape head-unit screen. Only flows that need no network:
  * tabs, Favorites (seeded through radio.xml before launch), search filtering on Favorites with a
- * single character (no Radio Browser request), Music (local & USB), Bluetooth, Key log.
+ * single character (no Radio Browser request), Music (local & USB), Bluetooth, Settings and the key log.
  *
  * There are no testTags in the app, so nodes are found by the texts / contentDescriptions mapped in
  * test-results/exploration-report.md (tab labels are rendered upper-case).
@@ -71,7 +71,7 @@ class MainActivityUiTest {
         tab("RADIO").assertIsDisplayed().assertIsSelected()
         listOf("FAVORITES", "MUSIC", "BLUETOOTH").forEach { tab(it).assertIsDisplayed().assertIsNotSelected() }
         compose.onNodeWithText("Search stations, countries, files…").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Key log").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Settings").assertIsDisplayed()
         compose.onNodeWithContentDescription("Next").assertIsDisplayed()
         compose.onNodeWithContentDescription("Previous").assertIsDisplayed()
         compose.onNodeWithContentDescription("Add to favorites").assertIsDisplayed() // mini player heart
@@ -148,7 +148,7 @@ class MainActivityUiTest {
     @Test fun key_log_dialog_shows_entries_and_closes() {
         val marker = "ui-test marker ${System.nanoTime()}"
         KeyLog.add("QA", marker)
-        compose.onNodeWithContentDescription("Key log").performClick()
+        compose.openKeyLog()
 
         compose.onNodeWithText("Wheel button log").assertIsDisplayed()
         compose.onNodeWithText("Press the wheel buttons; each press shows up here.").assertIsDisplayed()
@@ -160,7 +160,7 @@ class MainActivityUiTest {
     }
 
     @Test fun key_log_dialog_closes_with_system_back() {
-        compose.onNodeWithContentDescription("Key log").performClick()
+        compose.openKeyLog()
         compose.onNodeWithText("Wheel button log").assertIsDisplayed()
         UiDevice.getInstance(instrumentation).pressBack()
         compose.waitUntil(5_000) {
@@ -170,7 +170,7 @@ class MainActivityUiTest {
     }
 
     @Test fun key_log_closes_with_a_tap_outside_but_not_on_the_panel() {
-        compose.onNodeWithContentDescription("Key log").performClick()
+        compose.openKeyLog()
         compose.onNodeWithText("Wheel button log").performClick() // tap inside the panel
         compose.onNodeWithText("Wheel button log").assertIsDisplayed()
         UiDevice.getInstance(instrumentation).click(40, 300) // scrim, left of the centred panel

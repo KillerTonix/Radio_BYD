@@ -1,0 +1,93 @@
+<resources>
+    <string name="tab_radio">Ռադիո</string>
+    <string name="tab_favorites">Ընտրյալներ</string>
+    <string name="tab_music">Երաժշտություն</string>
+    <string name="tab_bluetooth">Bluetooth</string>
+
+    <string name="search_hint">Որոնել կայաններ, երկրներ, ֆայլեր…</string>
+    <string name="clear_search">Մաքրել որոնումը</string>
+    <string name="settings">Կարգավորումներ</string>
+
+    <string name="countries_error">Չհաջողվեց բեռնել երկրները։ Ստուգեք ինտերնետ կապը։</string>
+    <string name="stations_error">Չհաջողվեց բեռնել կայանները։</string>
+    <string name="try_again">Կրկին փորձել</string>
+    <plurals name="station_count">
+        <item quantity="one">%d կայան</item>
+        <item quantity="other">%d կայան</item>
+    </plurals>
+    <string name="play_country">Միացնել՝ %s</string>
+    <string name="back">Հետ</string>
+    <string name="no_stations">Կայաններ չեն գտնվել։</string>
+    <string name="no_match">«%s» հարցմանը համապատասխանող կայաններ չկան։</string>
+
+    <string name="fav_section_radio">Ռադիո (%d)</string>
+    <string name="fav_section_songs">Երգեր (%d)</string>
+    <string name="shuffle_favorite_songs">Խառը միացնել ընտրյալ երգերը (%d)</string>
+    <string name="favorites_empty">Ընտրյալներ դեռ չկան։ Սեղմեք կայանի կողքի սրտիկը՝ այն այստեղ ավելացնելու համար։</string>
+    <string name="favorite_songs_empty">Ընտրյալ երգեր դեռ չկան։ Սեղմեք երգի կողքի սրտիկը «Երաժշտություն» բաժնում։</string>
+
+    <string name="rescan">Կրկին որոնել սարքում և USB-ում</string>
+    <string name="allow_music">Թույլատրել երաժշտության հասանելիությունը</string>
+    <string name="shuffle_all">Խառը միացնել բոլորը (%d)</string>
+    <string name="music_needs_access">Թույլատրեք հասանելիությունը, որպեսզի հավելվածը գտնի երաժշտությունը մեքենայում և USB կրիչներում։</string>
+    <string name="music_empty">Աուդիո ֆայլեր չեն գտնվել։ Միացրեք USB կրիչ և սեղմեք «Կրկին որոնել»։</string>
+
+    <string name="bt_from_phone">Ձեր հեռախոսից · %s</string>
+    <string name="bt_previous_song">Նախորդ երգը</string>
+    <string name="bt_next_song">Հաջորդ երգը</string>
+    <string name="bt_wheel_active">Ղեկի կոճակները կառավարում են Bluetooth երաժշտությունը։</string>
+    <string name="bt_press_play">Սեղմեք «Միացնել» այստեղ, որպեսզի ղեկի կոճակները կառավարեն Bluetooth-ը։</string>
+    <string name="bt_not_found">Bluetooth երաժշտություն չի գտնվել։</string>
+    <string name="bt_not_found_hint">Միացրեք հեռախոսը, միացրեք դրանում երաժշտություն (կամ մեքենայի Bluetooth երաժշտության հավելվածում), ապա սեղմեք «Կրկնել»։</string>
+    <string name="retry">Կրկնել</string>
+    <string name="bt_setup_title">Անհրաժեշտ է մեկանգամյա կարգավորում</string>
+    <string name="bt_setup_text">Bluetooth երաժշտությունը կառավարելու համար Wheel Radio-ին անհրաժեշտ է ծանուցումների հասանելիություն։ Միացրեք այն կարգավորումներում կամ մեկ անգամ գործարկեք ADB-ով՝</string>
+    <string name="open_settings">Բացել կարգավորումները</string>
+    <string name="bt_open_car_app">Բացել մեքենայի Bluetooth երաժշտությունը</string>
+    <string name="bt_open_car_app_hint">Օգտագործեք, եթե հեռախոսը մեքենան չի առաջարկում երաժշտության համար։ Ապա վերադարձեք այստեղ։</string>
+    <string name="bt_car_app_not_found">Ավտոմատ գտնել չհաջողվեց։ Բացեք Bluetooth երաժշտությունը մեքենայի ընտրացանկից։</string>
+
+    <string name="nothing_playing">Ոչինչ չի հնչում</string>
+    <string name="connecting">Միացում…</string>
+    <string name="play">Միացնել</string>
+    <string name="pause">Դադար</string>
+    <string name="next">Հաջորդը</string>
+    <string name="previous">Նախորդը</string>
+    <string name="shuffle_on">Խառը՝ միացված</string>
+    <string name="shuffle_off">Խառը՝ անջատված</string>
+    <string name="add_favorite">Ավելացնել ընտրյալներին</string>
+    <string name="remove_favorite">Հեռացնել ընտրյալներից</string>
+
+    <string name="status_retrying">Կայանը հասանելի չէ – կրկին փորձ (%1$d/%2$d)…</string>
+    <string name="status_no_network">Ինտերնետ չկա – կայանը կշարունակի, երբ կապը վերականգնվի</string>
+    <string name="status_unavailable">Կայանը հասանելի չէ – սեղմեք «Միացնել»՝ կրկին փորձելու համար</string>
+
+    <string name="keylog_title">Ղեկի կոճակների մատյան</string>
+    <string name="keylog_hint">Սեղմեք ղեկի կոճակները․ յուրաքանչյուր սեղմում կերևա այստեղ։</string>
+    <string name="close">Փակել</string>
+
+    <string name="settings_language">Լեզու</string>
+    <string name="settings_ui_size">Ինտերֆեյսի չափը</string>
+    <string name="settings_ui_size_hint">Մեծացնում կամ փոքրացնում է տեքստը, կոճակները և ցանկերը։</string>
+    <string name="ui_size_small">Փոքր</string>
+    <string name="ui_size_normal">Սովորական</string>
+    <string name="ui_size_large">Մեծ</string>
+    <string name="ui_size_xlarge">Շատ մեծ</string>
+    <string name="settings_theme">Թեմա</string>
+    <string name="theme_dark">Մուգ</string>
+    <string name="theme_light">Բաց</string>
+    <string name="theme_auto">Ավտո</string>
+    <string name="theme_auto_hint">Ավտո՝ մուգ 19:00-ից 7:00, և միշտ, երբ մեքենան անցնում է գիշերային ռեժիմի։</string>
+    <string name="settings_playback">Նվագարկում</string>
+    <string name="settings_autoplay">Ավտոմատ միացում գործարկելիս</string>
+    <string name="settings_autoplay_hint">Շարունակել վերջին կայանը, երբ մեքենան միանում է։</string>
+    <string name="settings_weak_coverage">Թույլ կապի ռեժիմ</string>
+    <string name="settings_weak_coverage_hint">Յուրաքանչյուր կայանին տալ 40 վ՝ 20 վ-ի փոխարեն, նախքան կրկին փորձելը կամ անցնելը։ Օգնում է վատ բջջային ինտերնետի դեպքում։</string>
+    <string name="settings_home_country">Հայրենի երկիր</string>
+    <string name="settings_home_country_hint">Ցուցադրվում է առաջինը «Ռադիո» բաժնում։</string>
+    <string name="choose_country">Ընտրեք ձեր երկիրը</string>
+    <string name="cancel">Չեղարկել</string>
+    <string name="settings_diagnostics">Ախտորոշում</string>
+    <string name="open_keylog">Ցույց տալ ղեկի կոճակների մատյանը</string>
+    <string name="settings_version">Տարբերակ %s</string>
+</resources>

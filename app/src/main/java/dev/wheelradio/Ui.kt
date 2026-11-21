@@ -1,7 +1,9 @@
 package dev.wheelradio
 
 import android.Manifest
+import android.content.ContextWrapper
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -10,6 +12,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -17,9 +20,12 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
@@ -40,22 +46,68 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import coil.compose.SubcomposeAsyncImage
+import kotlinx.coroutines.delay
+import java.time.LocalTime
+import java.util.Locale
 
-private val Bg = Color(0xFF141B26)
-private val Surface1 = Color(0xFF1E2735)
-private val Accent = Color(0xFF29B6F6)
-private val TextDim = Color(0xFFB0BEC5)
-private val Warning = Color(0xFFFFB74D)
+// ---------- Theme ----------
 
+/** The app's palette. Dark is the original look; Light is for bright daylight. */
+@Immutable
+data class AppColors(
+    val bg: Color,
+    val surface: Color,
+    val accent: Color,
+    val onAccent: Color,
+    val text: Color,
+    val textDim: Color,
+    val warning: Color,
+    val placeholder: Color,
+    val logText: Color,
+    val heart: Color,
+    val dark: Boolean,
+)
+
+private val DarkColors = AppColors(
+    bg = Color(0xFF141B26), surface = Color(0xFF1E2735), accent = Color(0xFF29B6F6), onAccent = Color(0xFF141B26),
+    text = Color.White, textDim = Color(0xFFB0BEC5), warning = Color(0xFFFFB74D), placeholder = Color(0xFF2E3A4D),
+    logText = Color(0xFF80CBC4), heart = Color(0xFFFF5370), dark = true,
+)
+
+private val LightColors = AppColors(
+    bg = Color(0xFFF2F4F7), surface = Color.White, accent = Color(0xFF0277BD), onAccent = Color.White,
+    text = Color(0xFF17202B), textDim = Color(0xFF526070), warning = Color(0xFFB45309), placeholder = Color(0xFFDCE3EB),
+    logText = Color(0xFF00695C), heart = Color(0xFFE0245E), dark = false,
+)
+
+private val LocalAppColors = staticCompositionLocalOf { DarkColors }
+
+private val Bg: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.bg
+private val Surface1: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.surface
+private val Accent: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.accent
+private val OnAccent: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.onAccent
+private val TextMain: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.text
+private val TextDim: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.textDim
+private val Warning: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.warning
+private val Placeholder: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.placeholder
+private val LogText: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.logText
+private val Heart: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.heart
+
+/** Country tiles keep their coloured gradients (with white text) in both themes. */
 private val tileGradients = listOf(
     listOf(Color(0xFFB71C1C), Color(0xFF1A237E)),
     listOf(Color(0xFF3E2723), Color(0xFF212121)),
@@ -68,6 +120,66 @@ private val tileGradients = listOf(
     listOf(Color(0xFF6A1B9A), Color(0xFF283593)),
 )
 
+/** Dark for [ThemeMode.DARK]; for AUTO, at night (19:00–7:00) or whenever the car's system is in night mode. */
+@Composable
+private fun rememberDarkTheme(mode: ThemeMode): Boolean {
+    val systemDark = isSystemInDarkTheme()
+    var hour by remember { mutableIntStateOf(LocalTime.now().hour) }
+    LaunchedEffect(mode) {
+        while (mode == ThemeMode.AUTO) {
+            hour = LocalTime.now().hour
+            delay(60_000)
+        }
+    }
+    return when (mode) {
+        ThemeMode.DARK -> true
+        ThemeMode.LIGHT -> false
+        ThemeMode.AUTO -> systemDark || hour >= 19 || hour < 7
+    }
+}
+
+/**
+ * Applies the user's language, screen size and theme to everything inside. The language swaps the resources
+ * Compose reads strings from (no activity restart, so playback and the current screen are untouched); the size
+ * scales the density, so layout, text and touch targets grow together.
+ */
+@Composable
+private fun AppEnvironment(settings: AppSettings, content: @Composable () -> Unit) {
+    val dark = rememberDarkTheme(settings.theme) // read before the configuration is replaced below
+    val baseContext = LocalContext.current
+    val baseConfig = LocalConfiguration.current
+    val language = settings.language
+    val (config, context) = remember(baseContext, baseConfig, language) {
+        val cfg = Configuration(baseConfig).apply { setLocale(language.locale) }
+        val res = baseContext.createConfigurationContext(cfg).resources
+        // Still the activity underneath (startActivity, permissions), only with localized resources.
+        cfg to object : ContextWrapper(baseContext) {
+            override fun getResources() = res
+        }
+    }
+    val density = LocalDensity.current
+    val scale = settings.uiSize.scale
+    val scaled = remember(density, scale) { Density(density.density * scale, density.fontScale) }
+    val colors = if (dark) DarkColors else LightColors
+    CompositionLocalProvider(
+        LocalContext provides context,
+        LocalConfiguration provides config,
+        LocalDensity provides scaled,
+        LocalAppColors provides colors,
+    ) {
+        val scheme = if (dark) darkColorScheme(primary = colors.accent, background = colors.bg, surface = colors.surface)
+        else lightColorScheme(primary = colors.accent, background = colors.bg, surface = colors.surface)
+        MaterialTheme(colorScheme = scheme, content = content)
+    }
+}
+
+/** The locale the UI is shown in (for country names and upper-casing). */
+@Composable
+@ReadOnlyComposable
+private fun uiLocale(): Locale = LocalConfiguration.current.locales[0]
+
+// ---------- App ----------
+
 @Composable
 fun WheelRadioApp(
     model: AppModel,
@@ -75,7 +187,7 @@ fun WheelRadioApp(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
 ) {
-    MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Bg, surface = Surface1)) {
+    AppEnvironment(model.settings) {
         BackHandler(enabled = model.openCountry != null) { model.openCountry = null }
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().background(Bg)) {
@@ -91,7 +203,7 @@ fun WheelRadioApp(
                             onClick = { model.tab = t },
                             text = {
                                 Text(
-                                    t.title.uppercase(), fontSize = 18.sp,
+                                    stringResource(t.title).uppercase(uiLocale()), fontSize = 18.sp,
                                     color = if (model.tab == t) Accent else TextDim,
                                     maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
                                 )
@@ -109,7 +221,8 @@ fun WheelRadioApp(
                 }
                 MiniPlayer(model, onPlayPause, onNext, onPrevious)
             }
-            // Overlay in the same window, so wheel keys keep reaching MainActivity while the log is open.
+            // Overlays in the same window, so wheel keys keep reaching MainActivity while they are open.
+            if (model.showSettings) SettingsScreen(model)
             if (model.showKeyLog) KeyLogDialog { model.showKeyLog = false }
         }
     }
@@ -126,11 +239,11 @@ private fun TopBar(model: AppModel) {
             onValueChange = model::updateQuery,
             modifier = Modifier.weight(1f),
             singleLine = true,
-            placeholder = { Text("Search stations, countries, files…", fontSize = 18.sp) },
+            placeholder = { Text(stringResource(R.string.search_hint), fontSize = 18.sp) },
             leadingIcon = { Icon(Icons.Filled.Search, null) },
             trailingIcon = {
                 if (model.query.isNotEmpty()) IconButton(onClick = { model.updateQuery("") }) {
-                    Icon(Icons.Filled.Clear, "Clear search")
+                    Icon(Icons.Filled.Clear, stringResource(R.string.clear_search))
                 }
             },
             shape = RoundedCornerShape(14.dp),
@@ -139,8 +252,8 @@ private fun TopBar(model: AppModel) {
                 focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
             ),
         )
-        IconButton(onClick = { model.showKeyLog = true }, modifier = Modifier.padding(start = 8.dp).size(56.dp)) {
-            Icon(Icons.Filled.Settings, "Key log", tint = TextDim, modifier = Modifier.size(32.dp))
+        IconButton(onClick = { model.showSettings = true }, modifier = Modifier.padding(start = 8.dp).size(56.dp)) {
+            Icon(Icons.Filled.Settings, stringResource(R.string.settings), tint = TextDim, modifier = Modifier.size(32.dp))
         }
     }
 }
@@ -157,10 +270,10 @@ private fun CountriesTab(model: AppModel) {
         model.countriesLoading && model.countries.isEmpty() -> Centered { CircularProgressIndicator() }
         model.countriesError != null && model.countries.isEmpty() -> Centered {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(model.countriesError!!, color = TextDim, fontSize = 18.sp)
+                Text(stringResource(R.string.countries_error), color = TextDim, fontSize = 18.sp)
                 Spacer(Modifier.height(12.dp))
                 Button(onClick = model::loadCountries) {
-                    Icon(Icons.Filled.Refresh, null); Spacer(Modifier.width(8.dp)); Text("Try again")
+                    Icon(Icons.Filled.Refresh, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.try_again))
                 }
             }
         }
@@ -183,6 +296,7 @@ private fun CountryGrid(model: AppModel, countries: List<Country>) {
 @Composable
 private fun CountryTile(c: Country, onOpen: () -> Unit, onPlay: () -> Unit) {
     val colors = tileGradients[Math.floorMod(c.code.hashCode(), tileGradients.size)]
+    val name = c.displayName(uiLocale())
     Box(
         Modifier.fillMaxWidth().height(116.dp)
             .clip(RoundedCornerShape(16.dp))
@@ -195,14 +309,20 @@ private fun CountryTile(c: Country, onOpen: () -> Unit, onPlay: () -> Unit) {
                 Text(c.flag, fontSize = 34.sp)
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    c.name, fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = Color.White,
+                    name, fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = Color.White,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
             Spacer(Modifier.height(8.dp))
-            Text("${c.stationCount} Stations", fontSize = 17.sp, color = Color.White.copy(alpha = 0.85f))
+            Text(
+                pluralStringResource(R.plurals.station_count, c.stationCount, c.stationCount),
+                fontSize = 17.sp, color = Color.White.copy(alpha = 0.85f),
+            )
         }
-        RoundIconButton(PlayerIcons.Play, "Play ${c.name}", onPlay, Modifier.align(Alignment.BottomEnd), size = 44)
+        RoundIconButton(
+            PlayerIcons.Play, stringResource(R.string.play_country, name), onPlay,
+            Modifier.align(Alignment.BottomEnd), size = 44, tint = Color.White,
+        )
     }
 }
 
@@ -211,34 +331,40 @@ private fun CountryStations(model: AppModel, country: Country) {
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { model.openCountry = null }, modifier = Modifier.size(56.dp)) {
-                Icon(Icons.Filled.ArrowBack, "Back", modifier = Modifier.size(30.dp))
+                Icon(Icons.Filled.ArrowBack, stringResource(R.string.back), tint = TextMain, modifier = Modifier.size(30.dp))
             }
-            Text("${country.flag}  ${country.name}", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(
+                "${country.flag}  ${country.displayName(uiLocale())}",
+                fontSize = 26.sp, fontWeight = FontWeight.Bold, color = TextMain,
+            )
         }
         when {
             model.countryLoading -> Centered { CircularProgressIndicator() }
-            model.countryError != null -> Centered { Text(model.countryError!!, color = TextDim, fontSize = 18.sp) }
-            else -> StationList(model, model.countryStations, "No stations found.")
+            model.countryError != null -> Centered { Text(stringResource(R.string.stations_error), color = TextDim, fontSize = 18.sp) }
+            else -> StationList(model, model.countryStations, stringResource(R.string.no_stations))
         }
     }
 }
 
 @Composable
 private fun SearchResults(model: AppModel, q: String) {
-    val countryHits = model.countries.filter { it.name.contains(q, ignoreCase = true) }.take(6)
+    val locale = uiLocale()
+    val countryHits = model.countries
+        .filter { it.name.contains(q, ignoreCase = true) || it.displayName(locale).contains(q, ignoreCase = true) }
+        .take(6)
     Column(Modifier.fillMaxSize()) {
         if (countryHits.isNotEmpty()) {
             Row(Modifier.padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 countryHits.forEach { c ->
                     AssistChip(
                         onClick = { model.updateQuery(""); model.showCountry(c) },
-                        label = { Text("${c.flag} ${c.name}", fontSize = 18.sp) },
+                        label = { Text("${c.flag} ${c.displayName(locale)}", fontSize = 18.sp) },
                     )
                 }
             }
         }
         if (model.searching && model.searchResults.isEmpty()) Centered { CircularProgressIndicator() }
-        else StationList(model, model.searchResults, "No stations match \"$q\".")
+        else StationList(model, model.searchResults, stringResource(R.string.no_match, q))
     }
 }
 
@@ -258,38 +384,41 @@ private fun FavoritesTab(model: AppModel) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SectionPill("Radio (${model.favoriteRadios.size})", !songsView) { model.showFavoriteSongs = false }
-            SectionPill("Songs (${model.favoriteSongs.size})", songsView) { model.showFavoriteSongs = true }
+            ChoicePill(stringResource(R.string.fav_section_radio, model.favoriteRadios.size), !songsView) {
+                model.showFavoriteSongs = false
+            }
+            ChoicePill(stringResource(R.string.fav_section_songs, model.favoriteSongs.size), songsView) {
+                model.showFavoriteSongs = true
+            }
             Spacer(Modifier.width(12.dp))
             // Shuffle only applies to songs.
             if (songsView && list.size > 1) Button(onClick = { model.playShuffled(list) }) {
                 Icon(PlayerIcons.Shuffle, null); Spacer(Modifier.width(8.dp))
-                Text("Shuffle favorite songs (${list.size})", fontSize = 17.sp)
+                Text(stringResource(R.string.shuffle_favorite_songs, list.size), fontSize = 17.sp)
             }
         }
         StationList(
             model, list,
-            if (songsView) "No favorite songs yet. Tap the heart next to a song in Music to add it here."
-            else "No favorites yet. Tap the heart next to a station to add it here.",
+            stringResource(if (songsView) R.string.favorite_songs_empty else R.string.favorites_empty),
         )
     }
 }
 
-/** One of the Radio / Songs switches at the top of Favorites. */
+/** A selectable pill: the Radio / Songs switch in Favorites, and the choices in Settings. */
 @Composable
-private fun SectionPill(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun ChoicePill(label: String, selected: Boolean, role: Role = Role.Tab, onClick: () -> Unit) {
     Box(
         Modifier
             .clip(RoundedCornerShape(24.dp))
             .background(if (selected) Accent else Surface1)
-            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
+            .selectable(selected = selected, role = role, onClick = onClick)
             .heightIn(min = 52.dp)
             .padding(horizontal = 24.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             label, fontSize = 18.sp, fontWeight = FontWeight.Medium,
-            color = if (selected) Bg else TextDim,
+            color = if (selected) OnAccent else TextDim,
         )
     }
 }
@@ -318,20 +447,20 @@ private fun LocalTab(model: AppModel) {
         Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = { if (granted) model.scanLocal() else launcher.launch(permission) }) {
                 Icon(Icons.Filled.Refresh, null); Spacer(Modifier.width(8.dp))
-                Text(if (granted) "Rescan device & USB" else "Allow access to music", fontSize = 17.sp)
+                Text(stringResource(if (granted) R.string.rescan else R.string.allow_music), fontSize = 17.sp)
             }
             if (files.isNotEmpty()) Button(onClick = { model.playShuffled(files) }) {
                 Icon(PlayerIcons.Shuffle, null); Spacer(Modifier.width(8.dp))
-                Text("Shuffle all (${files.size})", fontSize = 17.sp)
+                Text(stringResource(R.string.shuffle_all, files.size), fontSize = 17.sp)
             }
         }
         when {
             model.localScanning -> Centered { CircularProgressIndicator() }
             else -> StationList(
                 model, files,
-                if (!granted && model.musicFolder == null)
-                    "Allow access so the app can find music on the car and on USB sticks."
-                else "No audio files found. Plug in a USB stick and tap Rescan.",
+                stringResource(
+                    if (!granted && model.musicFolder == null) R.string.music_needs_access else R.string.music_empty
+                ),
             )
         }
     }
@@ -350,7 +479,7 @@ private fun BluetoothTab(model: AppModel) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                Modifier.size(220.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFF2E3A4D)),
+                Modifier.size(220.dp).clip(RoundedCornerShape(20.dp)).background(Placeholder),
                 contentAlignment = Alignment.Center,
             ) {
                 val art = bt.art
@@ -360,29 +489,29 @@ private fun BluetoothTab(model: AppModel) {
             }
             Spacer(Modifier.width(32.dp))
             Column(Modifier.weight(1f)) {
-                Text("From your phone · ${bt.source}", fontSize = 16.sp, color = TextDim)
+                Text(stringResource(R.string.bt_from_phone, bt.source), fontSize = 16.sp, color = TextDim)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    bt.title.ifBlank { "Nothing playing" }, fontSize = 30.sp, fontWeight = FontWeight.Bold,
-                    color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    bt.title.ifBlank { stringResource(R.string.nothing_playing) }, fontSize = 30.sp, fontWeight = FontWeight.Bold,
+                    color = TextMain, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
                 if (bt.artist.isNotBlank()) Text(bt.artist, fontSize = 20.sp, color = TextDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(28.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RoundIconButton(PlayerIcons.Previous, "Previous song", { bt.previous() }, size = 80, filled = false)
+                    RoundIconButton(PlayerIcons.Previous, stringResource(R.string.bt_previous_song), { bt.previous() }, size = 80, filled = false)
                     Spacer(Modifier.width(16.dp))
                     RoundIconButton(
                         if (bt.isPlaying) PlayerIcons.Pause else PlayerIcons.Play,
-                        if (bt.isPlaying) "Pause" else "Play",
+                        stringResource(if (bt.isPlaying) R.string.pause else R.string.play),
                         { if (bt.isPlaying) bt.pause() else { model.pauseRadio(); bt.play() } },
                         size = 96,
                     )
                     Spacer(Modifier.width(16.dp))
-                    RoundIconButton(PlayerIcons.Next, "Next song", { bt.next() }, size = 80, filled = false)
+                    RoundIconButton(PlayerIcons.Next, stringResource(R.string.bt_next_song), { bt.next() }, size = 80, filled = false)
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    if (bt.active) "Wheel buttons control Bluetooth music." else "Press play here to use the wheel buttons for Bluetooth.",
+                    stringResource(if (bt.active) R.string.bt_wheel_active else R.string.bt_press_play),
                     fontSize = 15.sp, color = TextDim,
                 )
                 if (bt.title.isBlank()) {
@@ -394,31 +523,26 @@ private fun BluetoothTab(model: AppModel) {
         BluetoothBridge.Status.SEARCHING -> Centered { CircularProgressIndicator() }
         BluetoothBridge.Status.NOT_FOUND -> Centered {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("No Bluetooth music found.", fontSize = 22.sp, color = Color.White)
+                Text(stringResource(R.string.bt_not_found), fontSize = 22.sp, color = TextMain)
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "Connect your phone, start music on it (or in the car's Bluetooth music app), then tap Retry.",
-                    fontSize = 17.sp, color = TextDim,
-                )
+                Text(stringResource(R.string.bt_not_found_hint), fontSize = 17.sp, color = TextDim)
                 Spacer(Modifier.height(16.dp))
-                Button(onClick = { bt.refresh() }) { Icon(Icons.Filled.Refresh, null); Spacer(Modifier.width(8.dp)); Text("Retry") }
+                Button(onClick = { bt.refresh() }) {
+                    Icon(Icons.Filled.Refresh, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.retry))
+                }
                 Spacer(Modifier.height(12.dp))
                 CarBluetoothAppButton(model)
             }
         }
         BluetoothBridge.Status.NEEDS_ACCESS -> Centered {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("One-time setup needed", fontSize = 22.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.bt_setup_title), fontSize = 22.sp, color = TextMain, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "To control Bluetooth music, Wheel Radio needs notification access. Turn it on in settings, " +
-                        "or run this once over ADB:",
-                    fontSize = 17.sp, color = TextDim,
-                )
+                Text(stringResource(R.string.bt_setup_text), fontSize = 17.sp, color = TextDim)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "adb shell cmd notification allow_listener dev.wheelradio/dev.wheelradio.MediaListener",
-                    fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = Color(0xFF80CBC4),
+                    fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = LogText,
                 )
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -429,8 +553,8 @@ private fun BluetoothTab(model: AppModel) {
                                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                             )
                         }
-                    }) { Text("Open settings") }
-                    OutlinedButton(onClick = { bt.refresh() }) { Text("Retry") }
+                    }) { Text(stringResource(R.string.open_settings)) }
+                    OutlinedButton(onClick = { bt.refresh() }) { Text(stringResource(R.string.retry)) }
                 }
             }
         }
@@ -450,23 +574,184 @@ private fun CarBluetoothAppButton(model: AppModel) {
             model.pauseRadio()
             val apps = BluetoothBridge.findCarBluetoothApps(context)
             if (apps.size == 1) BluetoothBridge.openCarApp(context, apps[0]) else choices = apps
-        }) { Text("Open the car's Bluetooth music", fontSize = 17.sp) }
-        Text(
-            "Use this if your phone doesn't offer the car for music. Then come back here.",
-            fontSize = 14.sp, color = TextDim,
-        )
+        }) { Text(stringResource(R.string.bt_open_car_app), fontSize = 17.sp) }
+        Text(stringResource(R.string.bt_open_car_app_hint), fontSize = 14.sp, color = TextDim)
         choices?.let { apps ->
             Spacer(Modifier.height(8.dp))
-            if (apps.isEmpty()) Text(
-                "Couldn't find it automatically. Open Bluetooth music from the car's own menu.",
-                fontSize = 15.sp, color = TextDim,
-            )
+            if (apps.isEmpty()) Text(stringResource(R.string.bt_car_app_not_found), fontSize = 15.sp, color = TextDim)
             apps.take(6).forEach { app ->
                 TextButton(onClick = { choices = null; BluetoothBridge.openCarApp(context, app) }) {
                     Text("${app.label}  ·  ${app.packageName}", fontSize = 15.sp)
                 }
             }
         }
+    }
+}
+
+// ---------- Settings ----------
+
+/**
+ * Full-screen page over the app, drawn in the activity's own window like the key log, so wheel keys keep
+ * working while it is open. Every change applies at once.
+ */
+@Composable
+private fun SettingsScreen(model: AppModel) {
+    val s = model.settings
+    var pickCountry by remember { mutableStateOf(false) }
+    BackHandler { model.showSettings = false }
+    Column(
+        Modifier.fillMaxSize().background(Bg)
+            .pointerInput(Unit) { detectTapGestures { } } // nothing underneath reacts to taps
+    ) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { model.showSettings = false }, modifier = Modifier.size(56.dp)) {
+                Icon(Icons.Filled.ArrowBack, stringResource(R.string.back), tint = TextMain, modifier = Modifier.size(30.dp))
+            }
+            Text(stringResource(R.string.settings), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextMain)
+        }
+        Column(
+            Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
+                .padding(horizontal = 32.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(28.dp),
+        ) {
+            SettingsSection(stringResource(R.string.settings_language)) {
+                ChoiceRow {
+                    Language.entries.forEach { l ->
+                        ChoicePill(l.label, s.language == l, Role.RadioButton) { s.updateLanguage(l) }
+                    }
+                }
+            }
+            SettingsSection(stringResource(R.string.settings_ui_size), stringResource(R.string.settings_ui_size_hint)) {
+                ChoiceRow {
+                    UiSize.entries.forEach { size ->
+                        val label = when (size) {
+                            UiSize.SMALL -> R.string.ui_size_small
+                            UiSize.NORMAL -> R.string.ui_size_normal
+                            UiSize.LARGE -> R.string.ui_size_large
+                            UiSize.XLARGE -> R.string.ui_size_xlarge
+                        }
+                        ChoicePill(stringResource(label), s.uiSize == size, Role.RadioButton) { s.updateUiSize(size) }
+                    }
+                }
+            }
+            SettingsSection(stringResource(R.string.settings_theme), stringResource(R.string.theme_auto_hint)) {
+                ChoiceRow {
+                    ThemeMode.entries.forEach { mode ->
+                        val label = when (mode) {
+                            ThemeMode.DARK -> R.string.theme_dark
+                            ThemeMode.LIGHT -> R.string.theme_light
+                            ThemeMode.AUTO -> R.string.theme_auto
+                        }
+                        ChoicePill(stringResource(label), s.theme == mode, Role.RadioButton) { s.updateTheme(mode) }
+                    }
+                }
+            }
+            SettingsSection(stringResource(R.string.settings_playback)) {
+                SwitchRow(stringResource(R.string.settings_autoplay), stringResource(R.string.settings_autoplay_hint), s.autoplay) {
+                    s.updateAutoplay(it)
+                }
+                SwitchRow(
+                    stringResource(R.string.settings_weak_coverage), stringResource(R.string.settings_weak_coverage_hint),
+                    s.weakCoverage,
+                ) { s.updateWeakCoverage(it) }
+            }
+            SettingsSection(stringResource(R.string.settings_home_country), stringResource(R.string.settings_home_country_hint)) {
+                val home = Country(s.homeCountry, s.homeCountry, 0)
+                OutlinedButton(onClick = { pickCountry = true }) {
+                    Text("${home.flag}  ${home.displayName(uiLocale())}", fontSize = 18.sp)
+                }
+            }
+            SettingsSection(stringResource(R.string.settings_diagnostics)) {
+                OutlinedButton(onClick = { model.showKeyLog = true }) {
+                    Text(stringResource(R.string.open_keylog), fontSize = 17.sp)
+                }
+            }
+            Text(stringResource(R.string.settings_version, appVersion()), fontSize = 15.sp, color = TextDim)
+        }
+    }
+    if (pickCountry) CountryPicker(model, onDismiss = { pickCountry = false })
+}
+
+@Composable
+private fun SettingsSection(title: String, hint: String? = null, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = TextMain)
+        if (hint != null) Text(hint, fontSize = 15.sp, color = TextDim)
+        content()
+    }
+}
+
+@Composable
+private fun ChoiceRow(content: @Composable RowScope.() -> Unit) =
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, content = content)
+
+@Composable
+private fun SwitchRow(title: String, hint: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().widthIn(max = 1000.dp)
+            .clip(RoundedCornerShape(12.dp)).background(Surface1)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 19.sp, color = TextMain, fontWeight = FontWeight.Medium)
+            Text(hint, fontSize = 15.sp, color = TextDim)
+        }
+        Spacer(Modifier.width(16.dp))
+        Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
+/** The pinned countries, then all the others the directory knows, alphabetically in the UI language. */
+@Composable
+private fun CountryPicker(model: AppModel, onDismiss: () -> Unit) {
+    val locale = uiLocale()
+    val pinned = listOf("AM", "RU", "DE", "US", "GE", "FR")
+    val known = (pinned + model.countries.map { it.code }).distinct().map { Country(it, it, 0) }
+    val list = known.filter { it.code in pinned }.sortedBy { pinned.indexOf(it.code) } +
+        known.filter { it.code !in pinned }.sortedBy { it.displayName(locale) }
+    BackHandler(onBack = onDismiss)
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f))
+            .pointerInput(Unit) { detectTapGestures { onDismiss() } },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(24.dp).heightIn(max = 640.dp)
+                .clip(RoundedCornerShape(16.dp)).background(Surface1)
+                .pointerInput(Unit) { detectTapGestures { } }
+                .padding(20.dp)
+        ) {
+            Text(stringResource(R.string.choose_country), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextMain)
+            Spacer(Modifier.height(12.dp))
+            LazyColumn(Modifier.weight(1f, fill = false)) {
+                items(list, key = { it.code }) { c ->
+                    val selected = c.code == model.settings.homeCountry
+                    Text(
+                        "${c.flag}  ${c.displayName(locale)}",
+                        fontSize = 19.sp,
+                        color = if (selected) Accent else TextMain,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier.fillMaxWidth()
+                            .selectable(selected = selected, role = Role.RadioButton) { model.setHomeCountry(c.code); onDismiss() }
+                            .padding(vertical = 12.dp, horizontal = 8.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(R.string.cancel), fontSize = 18.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun appVersion(): String {
+    val context = LocalContext.current
+    return remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "?"
     }
 }
 
@@ -508,7 +793,7 @@ private fun StationRow(s: Station, playing: Boolean, favorite: Boolean, onClick:
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                s.name, fontSize = 21.sp, color = if (playing) Accent else Color.White,
+                s.name, fontSize = 21.sp, color = if (playing) Accent else TextMain,
                 fontWeight = if (playing) FontWeight.Bold else FontWeight.Medium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
@@ -519,8 +804,8 @@ private fun StationRow(s: Station, playing: Boolean, favorite: Boolean, onClick:
         IconButton(onClick = onFavorite, modifier = Modifier.size(56.dp)) {
             Icon(
                 if (favorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                if (favorite) "Remove from favorites" else "Add to favorites",
-                tint = if (favorite) Color(0xFFFF5370) else TextDim,
+                stringResource(if (favorite) R.string.remove_favorite else R.string.add_favorite),
+                tint = if (favorite) Heart else TextDim,
                 modifier = Modifier.size(30.dp),
             )
         }
@@ -531,10 +816,10 @@ private fun StationRow(s: Station, playing: Boolean, favorite: Boolean, onClick:
 private fun Artwork(url: String, name: String, size: Int) {
     val fallback = @Composable {
         Box(
-            Modifier.fillMaxSize().background(Color(0xFF2E3A4D)),
+            Modifier.fillMaxSize().background(Placeholder),
             contentAlignment = Alignment.Center,
         ) {
-            Text(name.take(1).uppercase(), fontSize = (size / 2.2).sp, color = Color.White, fontWeight = FontWeight.Bold)
+            Text(name.take(1).uppercase(), fontSize = (size / 2.2).sp, color = TextMain, fontWeight = FontWeight.Bold)
         }
     }
     Box(Modifier.size(size.dp).clip(RoundedCornerShape(10.dp))) {
@@ -558,14 +843,14 @@ private fun MiniPlayer(model: AppModel, onPlayPause: () -> Unit, onNext: () -> U
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                now.title.ifBlank { "Nothing playing" }, fontSize = 22.sp, color = Color.White,
+                now.title.ifBlank { stringResource(R.string.nothing_playing) }, fontSize = 22.sp, color = TextMain,
                 fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             // A problem (retrying, no internet, station unavailable) beats "Connecting…" and the song title,
             // so a silent radio never just looks paused.
             val sub = when {
                 now.status.isNotBlank() -> now.status
-                now.buffering -> "Connecting…"
+                now.buffering -> stringResource(R.string.connecting)
                 else -> now.nowPlaying
             }
             val subColor = if (now.status.isNotBlank()) Warning else TextDim
@@ -574,20 +859,20 @@ private fun MiniPlayer(model: AppModel, onPlayPause: () -> Unit, onNext: () -> U
         if (now.canShuffle) {
             IconButton(onClick = { model.setShuffle(!now.shuffle) }, modifier = Modifier.size(56.dp)) {
                 Icon(
-                    PlayerIcons.Shuffle, if (now.shuffle) "Shuffle on" else "Shuffle off",
+                    PlayerIcons.Shuffle, stringResource(if (now.shuffle) R.string.shuffle_on else R.string.shuffle_off),
                     tint = if (now.shuffle) Accent else TextDim, modifier = Modifier.size(30.dp),
                 )
             }
             Spacer(Modifier.width(4.dp))
         }
-        RoundIconButton(PlayerIcons.Previous, "Previous", onPrevious, size = 56, filled = false)
+        RoundIconButton(PlayerIcons.Previous, stringResource(R.string.previous), onPrevious, size = 56, filled = false)
         Spacer(Modifier.width(8.dp))
         RoundIconButton(
             if (now.isPlaying) PlayerIcons.Pause else PlayerIcons.Play,
-            if (now.isPlaying) "Pause" else "Play", onPlayPause, size = 64,
+            stringResource(if (now.isPlaying) R.string.pause else R.string.play), onPlayPause, size = 64,
         )
         Spacer(Modifier.width(8.dp))
-        RoundIconButton(PlayerIcons.Next, "Next", onNext, size = 56, filled = false)
+        RoundIconButton(PlayerIcons.Next, stringResource(R.string.next), onNext, size = 56, filled = false)
         Spacer(Modifier.width(8.dp))
         val station = now.station
         IconButton(onClick = { station?.let(model::toggleFavorite) }, enabled = station != null, modifier = Modifier.size(56.dp)) {
@@ -595,8 +880,8 @@ private fun MiniPlayer(model: AppModel, onPlayPause: () -> Unit, onNext: () -> U
             Icon(
                 // Same wording as the list hearts, so TalkBack and tests can tell the state.
                 if (fav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                if (fav) "Remove from favorites" else "Add to favorites",
-                tint = if (fav) Color(0xFFFF5370) else Color.White, modifier = Modifier.size(32.dp),
+                stringResource(if (fav) R.string.remove_favorite else R.string.add_favorite),
+                tint = if (fav) Heart else TextMain, modifier = Modifier.size(32.dp),
             )
         }
     }
@@ -605,15 +890,15 @@ private fun MiniPlayer(model: AppModel, onPlayPause: () -> Unit, onNext: () -> U
 @Composable
 private fun RoundIconButton(
     icon: ImageVector, description: String, onClick: () -> Unit,
-    modifier: Modifier = Modifier, size: Int = 56, filled: Boolean = true,
+    modifier: Modifier = Modifier, size: Int = 56, filled: Boolean = true, tint: Color = TextMain,
 ) {
     Box(
         modifier.size(size.dp).clip(CircleShape)
-            .background(if (filled) Color.White.copy(alpha = 0.22f) else Color.Transparent)
+            .background(if (filled) tint.copy(alpha = 0.2f) else Color.Transparent)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, description, tint = Color.White, modifier = Modifier.size((size * 0.55).dp))
+        Icon(icon, description, tint = tint, modifier = Modifier.size((size * 0.55).dp))
     }
 }
 
@@ -642,16 +927,18 @@ private fun KeyLogDialog(onClose: () -> Unit) {
                 .pointerInput(Unit) { detectTapGestures { } } // taps on the panel don't close it
                 .padding(20.dp)
         ) {
-            Text("Wheel button log", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text("Press the wheel buttons; each press shows up here.", fontSize = 15.sp, color = TextDim)
+            Text(stringResource(R.string.keylog_title), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextMain)
+            Text(stringResource(R.string.keylog_hint), fontSize = 15.sp, color = TextDim)
             Spacer(Modifier.height(12.dp))
             LazyColumn(Modifier.weight(1f, fill = false)) {
                 items(log) { line ->
-                    Text(line, fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = Color(0xFF80CBC4))
+                    Text(line, fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = LogText)
                 }
             }
             Spacer(Modifier.height(12.dp))
-            TextButton(onClick = onClose, modifier = Modifier.align(Alignment.End)) { Text("Close", fontSize = 18.sp) }
+            TextButton(onClick = onClose, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(R.string.close), fontSize = 18.sp)
+            }
         }
     }
 }
