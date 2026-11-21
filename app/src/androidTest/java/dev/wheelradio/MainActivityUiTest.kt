@@ -74,7 +74,7 @@ class MainActivityUiTest {
         compose.onNodeWithContentDescription("Key log").assertIsDisplayed()
         compose.onNodeWithContentDescription("Next").assertIsDisplayed()
         compose.onNodeWithContentDescription("Previous").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Favorite").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Add to favorites").assertIsDisplayed() // mini player heart
     }
 
     @Test fun tapping_each_tab_moves_the_selection() {

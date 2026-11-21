@@ -556,7 +556,9 @@ private fun MiniPlayer(model: AppModel, onPlayPause: () -> Unit, onNext: () -> U
         IconButton(onClick = { station?.let(model::toggleFavorite) }, enabled = station != null, modifier = Modifier.size(56.dp)) {
             val fav = model.isFavorite(station?.id)
             Icon(
-                if (fav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, "Favorite",
+                // Same wording as the list hearts, so TalkBack and tests can tell the state.
+                if (fav) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                if (fav) "Remove from favorites" else "Add to favorites",
                 tint = if (fav) Color(0xFFFF5370) else Color.White, modifier = Modifier.size(32.dp),
             )
         }

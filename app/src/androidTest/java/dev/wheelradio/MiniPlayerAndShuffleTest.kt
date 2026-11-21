@@ -14,7 +14,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.ExternalResource
@@ -69,24 +68,29 @@ class MiniPlayerAndShuffleTest {
         waitForText("QA Stream 1")
         waitForDesc("Pause")
 
-        compose.onNodeWithContentDescription("Favorite").performClick()
+        // On By countries there are no list hearts, so this can only be the mini player's.
+        compose.onNodeWithContentDescription("Add to favorites").performClick()
         assertThat(Station.listFromJson(radioPrefs.getString("favorites", null)).map { it.id }).contains("qa:ok:1")
         compose.onNodeWithText("FAVORITES").performClick()
         // once in the list, once in the mini player
         assertThat(compose.onAllNodesWithText("QA Stream 1").fetchSemanticsNodes()).hasSize(2)
 
-        compose.onNodeWithContentDescription("Favorite").performClick() // toggles back
+        // Toggle back from By countries, where the mini player's heart is the only one.
+        compose.onNodeWithText("BY COUNTRIES").performClick()
+        compose.onNodeWithContentDescription("Remove from favorites").performClick()
+        compose.onNodeWithText("FAVORITES").performClick()
         assertThat(compose.onAllNodesWithText("QA Stream 1").fetchSemanticsNodes()).hasSize(1)
     }
 
-    @Ignore("Known bug U8 - mini-player favorite button contentDescription does not reflect state - see test-results/bugs.md")
+    /** Regression for U8: the mini player's heart used to read "Favorite" whatever its state. */
     @Test fun mini_player_heart_exposes_its_state() {
         svc.playQueue(defaultQueue(), 0)
         assertThat(svc.waitPlaying("qa:ok:1")).isTrue()
         waitForText("QA Stream 1")
-        compose.onNodeWithContentDescription("Favorite").performClick()
-        // On By countries there are no list hearts, so this can only be the mini player's.
+        compose.onNodeWithContentDescription("Add to favorites").performClick()
         compose.onNodeWithContentDescription("Remove from favorites").assertExists()
+        compose.onNodeWithContentDescription("Remove from favorites").performClick()
+        compose.onNodeWithContentDescription("Add to favorites").assertExists()
     }
 
     @Test fun radio_station_has_no_shuffle_toggle() {

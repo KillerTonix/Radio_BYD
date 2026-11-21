@@ -6,7 +6,6 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -74,30 +73,32 @@ class BydWheelKeyReceiverTest {
         assertThat(newLogLines().single()).contains("frame 04 01 FF code=0xFF -> unmapped")
     }
 
-    @Test fun wrong_group_is_ignored_silently() {
+    @Test fun wrong_group_does_nothing_but_is_logged() {
         receiver.onReceive(context, frame(bytes(5, 1, 0x03)))
         assertThat(actions).isEmpty()
-        assertThat(newLogLines()).isEmpty()
+        assertThat(newLogLines().single()).contains("[BYD] unrecognised: byte[] 05 01 03 (not a wheel-key frame)")
     }
 
-    @Test fun wrong_sub_group_is_ignored_silently() {
+    @Test fun wrong_sub_group_does_nothing_but_is_logged() {
         receiver.onReceive(context, frame(bytes(4, 2, 0x03)))
         assertThat(actions).isEmpty()
-        assertThat(newLogLines()).isEmpty()
+        assertThat(newLogLines().single()).contains("unrecognised: byte[] 04 02 03")
     }
 
-    @Test fun short_and_empty_frames_are_ignored() {
+    @Test fun short_and_empty_frames_do_nothing_but_are_logged() {
         receiver.onReceive(context, frame(bytes(4, 1)))
         receiver.onReceive(context, frame(bytes(4)))
         receiver.onReceive(context, frame(ByteArray(0)))
         assertThat(actions).isEmpty()
-        assertThat(newLogLines()).isEmpty()
+        assertThat(newLogLines()).hasSize(3)
+        assertThat(newLogLines()[0]).contains("unrecognised: byte[] 04 01 (too short)")
     }
 
-    @Test fun missing_extra_is_ignored() {
+    @Test fun missing_extra_does_nothing_and_logs_the_extras_it_did_get() {
         receiver.onReceive(context, frame(null))
         receiver.onReceive(context, Intent(BydWheelKeyReceiver.ACTION).putExtra("other", bytes(4, 1, 3)))
         assertThat(actions).isEmpty()
+        assertThat(newLogLines().last()).contains("no \"list\" extra; extras: [other]")
     }
 
     /** Documents current behaviour seen on the emulator: non-byte[] payloads are dropped. */
@@ -116,13 +117,32 @@ class BydWheelKeyReceiverTest {
     }
 
     /**
-     * The class comment promises "every frame is logged to KeyLog" so the real BYD format can be learned
-     * in the car. Frames with another payload type or group are dropped before logging.
+     * Regression: frames with another payload type or group used to be dropped before logging, so a drive could
+     * not reveal the real BYD format. They are now logged (but never acted on).
      */
-    @Ignore("Known bug [AUDIO] APP_REV_DATA frames with an unexpected payload are dropped without any KeyLog entry - see test-results/bugs.md")
     @Test fun every_app_rev_data_frame_is_logged() {
         receiver.onReceive(context, frame(intArrayOf(4, 1, 3)))
         receiver.onReceive(context, frame(bytes(5, 1, 3)))
-        assertThat(newLogLines()).hasSize(2)
+        val log = newLogLines()
+        assertThat(log).hasSize(2)
+        assertThat(log[0]).contains("unrecognised: int[] 4 1 3")
+        assertThat(actions).isEmpty()
+    }
+
+    @Test fun a_repeated_unrecognised_payload_is_logged_once() {
+        repeat(20) { receiver.onReceive(context, frame(bytes(7, 3, 0x10, 0x20))) }
+        assertThat(newLogLines()).hasSize(1)
+    }
+
+    /** The head unit may broadcast other data constantly; it must not push wheel presses out of the 100-line log. */
+    @Test fun unrecognised_payloads_stop_being_logged_after_fifty_distinct_ones_but_wheel_keys_still_are() {
+        repeat(80) { receiver.onReceive(context, frame(bytes(9, 9, it))) }
+        receiver.onReceive(context, frame(bytes(4, 1, 0x03)))
+
+        val log = newLogLines()
+        assertThat(log.count { "unrecognised:" in it }).isEqualTo(50)
+        assertThat(log.count { "not logging any further ones" in it }).isEqualTo(1)
+        assertThat(log.last()).contains("frame 04 01 03 code=0x03 -> NEXT")
+        assertThat(actions).containsExactly(WheelAction.NEXT)
     }
 }

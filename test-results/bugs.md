@@ -74,6 +74,7 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
   - **Evidence:** `test-results/audio-session-report.md` section 4.
 
 ## [UI] Mini-player favorite button contentDescription does not reflect state
+- **Status: FIXED on branch `fix/failure-handling`.** The mini player's heart now reads `Add to favorites` / `Remove from favorites`, the same as the list hearts. Test: `androidTest/MiniPlayerAndShuffleTest.mini_player_heart_exposes_its_state` (no longer `@Ignore`d, passes; toggles both ways). Tests that selected the old `Favorite` label were updated.
 - **Severity:** Low (accessibility / testability)
 - **Steps:** play any station → tap the mini-player heart → inspect the node.
 - **Expected:** `Add to favorites` / `Remove from favorites` (as in the list rows), or a stateDescription.
@@ -171,6 +172,10 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 - **Evidence:** `14:43:30.070 error` → `14:43:30.378 [Player] seekToNext` → `Հանրային ռադիո` state 6 at +1.8 s, state 3 at +2.7 s.
 
 ## [AUDIO] BYD APP_REV_DATA frames with an unexpected payload are dropped without any KeyLog entry
+- **Status: FIXED on branch `fix/failure-handling`.** `BydWheelKeyReceiver` now logs every payload that is not a `byte[] [4, 1, code]` wheel-key frame as `[BYD] unrecognised: …`, with its type and contents (`byte[]` hex, `int[]`, `long[]`, `String`, other, or the extra names when there is no `list` extra). It still never acts on them.
+  - **Flood protection:** the head unit may broadcast other data constantly, so each distinct payload is logged once, up to 50, then a single "not logging any further ones" line. Wheel-key frames are always logged, so they can't be pushed out of the 100-line key log.
+  - **Manual check:** step 2's `am broadcast -a APP_REV_DATA` commands (`--eia`, `--ela`, `--es`, `--ei`, no `list`) now each show one line in the key log; a repeated `int[]` frame is not logged twice; no station change.
+  - **Tests:** `test/BydWheelKeyReceiverTest.every_app_rev_data_frame_is_logged` (no longer `@Ignore`d, passes), plus new tests for de-duplication and the 50-payload cap with a wheel key after it. The three tests that asserted "ignored silently" now expect a single log line and no action.
 - **Severity:** Low (diagnostics)
 - **Steps:** `adb shell am broadcast -a APP_REV_DATA --eia list 4,1,3` (also `--ela`, `--es`, `--ei`, a short `4,1`, wrong group `5,1,3`).
 - **Expected:** per the class comment ("every frame is logged to KeyLog"), each received broadcast shows up in the Key log, so the real BYD format can be learned in the car.
@@ -197,13 +202,13 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 | Bug | Test | Observed failure when un-ignored |
 |---|---|---|
 | U7 offline queue walk (**fixed**, test now enabled) | `androidTest/RadioServicePlaybackTest.offline_outage_does_not_walk_through_the_queue` (Wi-Fi + data off via `svc`, local fake stream refusing connections, 60 s) | Failed with `expected: 0 but was: 1` before the fix; passes on `fix/playback-bugs`. |
-| U8 mini-player heart description | `androidTest/MiniPlayerAndShuffleTest.mini_player_heart_exposes_its_state` | no node `Remove from favorites` after hearting; the description stays `Favorite` |
+| U8 mini-player heart description (**fixed**, test now enabled) | `androidTest/MiniPlayerAndShuffleTest.mini_player_heart_exposes_its_state` | Failed with no node `Remove from favorites` (label stayed `Favorite`) before the fix; passes on `fix/failure-handling`. |
 | [AUDIO] Double Play/Pause skips (**fixed**, test now enabled) | `androidTest/WheelKeyRouteTest.double_play_pause_never_switches_station` | Failed with `expected: qa:ok:1 but was: qa:ok:2` before the fix; passes on `fix/playback-bugs`. |
 | [AUDIO] CHANNEL_UP/DOWN with key log open (**fixed**, test now enabled) | `WheelKeyRouteTest.channel_up_switches_station_while_key_log_dialog_is_open` | Failed with no switch within 5 s before the fix; passes on `fix/playback-bugs`. |
 | [AUDIO] CHANNEL_UP/DOWN in background (**platform limit**, stays ignored) | `WheelKeyRouteTest.channel_up_switches_station_with_the_app_in_background` | No switch within 5 s; Android never routes these keys to a background app. |
 | [AUDIO] Hold repeats skip in background (**fixed**, test now enabled) | `WheelKeyRouteTest.holding_media_next_in_background_switches_one_station` | Failed with `expected: 1 but was: 2` before the fix; passes on `fix/playback-bugs`. |
 | [AUDIO] Next during back-off waits for stale timer (**fixed**, test now enabled) | `test/RadioServiceRetryPolicyTest.next_during_error_back_off_starts_the_new_station_immediately` (Robolectric, fake clock) | Failed with `playbackState` staying `STATE_IDLE` (1) after `seekToNext()` before the fix; passes on `fix/failure-handling`. |
-| [AUDIO] APP_REV_DATA frames dropped without KeyLog | `test/BydWheelKeyReceiverTest.every_app_rev_data_frame_is_logged` | 0 KeyLog lines for an `int[]` frame and a group-5 frame (expected 2) |
+| [AUDIO] APP_REV_DATA frames dropped without KeyLog (**fixed**, test now enabled) | `test/BydWheelKeyReceiverTest.every_app_rev_data_frame_is_logged` | Failed with 0 KeyLog lines for an `int[]` and a group-5 frame (expected 2) before the fix; passes on `fix/failure-handling`. |
 
 Not covered by an automated test:
 - U1–U6 and U9 need the live Radio Browser directory. `RadioBrowser` is an `object` with hard-coded hosts, so it cannot be stubbed without a production seam.
