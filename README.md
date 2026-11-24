@@ -46,7 +46,7 @@ Newer DiLink firmware blocks APK installs from USB by default. Owners enable ADB
 
 `app/src/main/assets/stations.json` is only the starter list for the very first launch.
 
-`assets/stations_<country code>.json` (e.g. `stations_am.json`, 46 Armenian stations) holds hand-picked stations that are shown first in that country and merged with Radio Browser, skipping duplicates.
+`assets/stations_<country code>.json` (e.g. `stations_am.json`, 44 Armenian stations) holds hand-picked stations that are shown first in that country and merged with Radio Browser, skipping duplicates.
 
 ## Code map
 

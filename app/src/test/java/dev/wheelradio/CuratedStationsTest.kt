@@ -75,9 +75,9 @@ class CuratedStationsTest {
 
     // ---- forCountry (bundled assets, no network) ----
 
-    @Test fun armenia_reads_46_curated_stations_in_file_order() {
+    @Test fun armenia_reads_44_curated_stations_in_file_order() {
         val am = CuratedStations.forCountry(context, "AM")
-        assertThat(am).hasSize(46)
+        assertThat(am).hasSize(44)
         assertThat(am.first().id).isEqualTo("am:00")
         assertThat(am.first().name).isEqualTo("Հանրային ռադիո")
         assertThat(am.all { it.id.startsWith("am:") && !it.local }).isTrue()

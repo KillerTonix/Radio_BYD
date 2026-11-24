@@ -238,12 +238,13 @@ Positive path verified for the first time: a real `byte[]` `APP_REV_DATA` frame 
 - **Also reported from the car (0.5.2):** the bottom bar kept showing the paused radio station while Bluetooth played, the big player never showed Bluetooth, and there was no cover art (only "BT"). **Fixed in 0.5.3:** the mini player and big player follow Bluetooth whenever it is the chosen source (`BluetoothBridge.inUse`), with a source icon (radio / music / Bluetooth) in front of the title. For covers, Android 10's AVRCP controller has no cover art (cover art arrived in Android 11), so `BluetoothBridge` now uses any picture or picture link in the session and otherwise takes the cover from another app's session playing the same title (e.g. Media Center, with notification access). It logs `[BT] song "…" from …, cover: …` for each song. Whether Media Center publishes the cover still has to be confirmed in the car.
 - **Without opening Media Center (0.5.3, still to be confirmed in the car):** Play on the Bluetooth tab, the mini player, the wheel's play key, and the app start after Bluetooth was the last source now run `BluetoothBridge.activate()`. It stops as soon as Bluetooth plays: (1) Play via the AVRCP controller, (2) Play on the car player's media session, (3) Play through the car player's MediaBrowserService, (4) only while Wheel Radio is in front: open Media Center and come back after 2 s. Each step logs `[BT] step n/4: …`, and the result is `Bluetooth plays: step n worked` or `still silent`. Settings → Show wheel button log → **Bluetooth diagnostics** logs the Bluetooth profile states, every media session (state, actions, metadata keys), every MediaBrowserService and Media Center's exported components. Verified on the emulator (no Bluetooth there): steps 1–3 report "not available", and step 4's open-and-return worked with a stand-in player, then was limited to real car Bluetooth players.
 
-## [AUDIO] Ռադիո Ջազ (am:16) fails with ERROR_CODE_IO_BAD_HTTP_STATUS on the car
+## [AUDIO] Ռադիո Ջազ (am:16) fails with ERROR_CODE_IO_BAD_HTTP_STATUS on the car — fixed
 - **Severity:** Medium (one curated station; recovery retries, then skips).
 - **Steps:** BYD Yuan Plus, Radio → Armenia → Ռադիո Ջազ.
 - **Expected:** the station plays.
 - **Actual:** the mini player stays on "Connecting…"; the key log shows `[Player] error: ERROR_CODE_IO_BAD_HTTP_STATUS` (12:04:28 and 12:04:48).
 - **Evidence:** `http://am.radioaurora.am:8010/jz` from `stations_am.json`. The server answers with a non-2xx status. From the dev PC the host didn't answer at all within 10 s, so the station is down or geo-restricted. This needs a new URL; it's content, not a code fix.
+- **Fix (2026-11-24):** `https://de.auroramedia.am/jazz.mp3`, the same Aurora Media server as Ավտոռադիո and Kiss FM (200 `audio/mpeg`, 256 kbps). It is the stream of the directory's "Jazz FM 106.9 Yerevan Radio" entry, so the merge now drops that duplicate row from the Armenia list.
 
 ## [AUDIO] After an app restart, the first wheel Next goes to the radio while the phone plays over Bluetooth (BYD Yuan Plus)
 - **Severity:** High (the wheel switches the car from the phone's music to a radio station).
@@ -262,3 +263,13 @@ Positive path verified for the first time: a real `byte[]` `APP_REV_DATA` frame 
 - **Evidence:** `https://de.auroramedia.am/autoradio.mp3` from `stations_am.json` returns **404** from the dev PC too. The same host still serves `aurora.mp3` and `kissfm.mp3` (206), so the Avtoradio mount was renamed or removed. This needs a new URL. It is a content fix, not a code fix.
 - **Fix:** the mount is `https://de.auroramedia.am/autoradio` (no `.mp3`), which answers 206 `audio/mpeg`. Verified on the emulator: Armenia → Ավտոռադիո plays.
 - **Logging gap (fixed):** the player error line now names the station and the HTTP status, e.g. `[Player] error: ERROR_CODE_IO_BAD_HTTP_STATUS HTTP 404 on "Ավտոռադիո"`.
+
+## [AUDIO] Armenian stream check, 2026-11-24: Ռադիո Ազալիա and Ռադիո Վեմ are dead at the source
+- **Method:** every stream in `stations_am.json` (46) and every Armenian Radio Browser station not already in it (6) was read for 8 s with the player's user agent, recording the HTTP status, the content type and the bytes received.
+- **Result:** 48 of 52 streamed audio. Failures:
+  - **Ռադիո Ազալիա (am:07)** `https://stream-153.zeno.fm/s865660v7hhvv`: HTTP **401**, also through `stream.zeno.fm` and with a browser user agent. The station's other known page (radioazalia.microwav.fm) no longer resolves. No current stream found.
+  - **Ռադիո Վեմ (am:25)** `https://eu1.stream4cast.com/proxy/vemradio/stream`: HTTP **404** on eu, eu1 and eu2. vem.am's own web player uses the same URL, so the station's stream is down at the source. Re-check later before replacing it.
+  - **Ռադիո Ջազ (am:16)**: no answer from the old host. Fixed, see above.
+  - **Voice of Van (am:40)**: false alarm. It is a SHOUTcast v1 server (`ICY 200 OK`, `audio/mpeg`, 32 kbps). curl rejects that old reply without `--http0.9`, but the app plays it (verified on the emulator).
+- **Impact:** a dead station costs the driver about 22 s (4 tries) before the player skips it, every time it comes up in the list.
+- **Resolved:** am:07 and am:25 were removed from `stations_am.json` (44 stations now). The other ids keep their numbers, because favorites and the saved queue refer to stations by id. If either station comes back, add it again under a new id (am:46 and up).
