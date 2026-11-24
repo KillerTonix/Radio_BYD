@@ -43,7 +43,12 @@ class StreamRecovery(
         override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) = reset()
 
         override fun onPlayerError(error: PlaybackException) {
-            KeyLog.add("Player", "error: ${error.errorCodeName}")
+            // Name the station and the server's answer, so a car key log says which URL needs fixing.
+            val http = generateSequence<Throwable>(error) { it.cause }
+                .filterIsInstance<androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException>()
+                .firstOrNull()?.let { " HTTP ${it.responseCode}" }.orEmpty()
+            val station = player.currentMediaItem?.mediaMetadata?.title?.let { " on \"$it\"" }.orEmpty()
+            KeyLog.add("Player", "error: ${error.errorCodeName}$http$station")
             handleFailure(stalled = false)
         }
 

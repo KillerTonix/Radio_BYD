@@ -43,7 +43,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -79,19 +81,21 @@ data class AppColors(
     val placeholder: Color,
     val logText: Color,
     val heart: Color,
+    /** The dark line between the list and the mini player. */
+    val divider: Color,
     val dark: Boolean,
 )
 
 private val DarkColors = AppColors(
     bg = Color(0xFF141B26), surface = Color(0xFF1E2735), accent = Color(0xFF29B6F6), onAccent = Color(0xFF141B26),
     text = Color.White, textDim = Color(0xFFB0BEC5), warning = Color(0xFFFFB74D), placeholder = Color(0xFF2E3A4D),
-    logText = Color(0xFF80CBC4), heart = Color(0xFFFF5370), dark = true,
+    logText = Color(0xFF80CBC4), heart = Color(0xFFFF5370), divider = Color(0xFF05080D), dark = true,
 )
 
 private val LightColors = AppColors(
     bg = Color(0xFFF2F4F7), surface = Color.White, accent = Color(0xFF0277BD), onAccent = Color.White,
     text = Color(0xFF17202B), textDim = Color(0xFF526070), warning = Color(0xFFB45309), placeholder = Color(0xFFDCE3EB),
-    logText = Color(0xFF00695C), heart = Color(0xFFE0245E), dark = false,
+    logText = Color(0xFF00695C), heart = Color(0xFFE0245E), divider = Color(0xFF3A4654), dark = false,
 )
 
 private val LocalAppColors = staticCompositionLocalOf { DarkColors }
@@ -106,6 +110,7 @@ private val Warning: Color @Composable @ReadOnlyComposable get() = LocalAppColor
 private val Placeholder: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.placeholder
 private val LogText: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.logText
 private val Heart: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.heart
+private val DividerColor: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.divider
 
 /** Country tiles keep their coloured gradients (with white text) in both themes. */
 private val tileGradients = listOf(
@@ -189,7 +194,23 @@ fun WheelRadioApp(
 ) {
     AppEnvironment(model.settings) {
         BackHandler(enabled = model.openCountry != null) { model.openCountry = null }
-        Box(Modifier.fillMaxSize()) {
+        // Every touch anywhere (seen first, never consumed) restarts the idle time before the big player.
+        LaunchedEffect(model) {
+            while (true) {
+                delay(1_000)
+                if (model.bigPlayerDue()) model.bigPlayer = true
+            }
+        }
+        Box(
+            Modifier.fillMaxSize().pointerInput(model) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                        model.onUserTouch()
+                    }
+                }
+            }
+        ) {
             Column(Modifier.fillMaxSize().background(Bg)) {
                 TopBar(model)
                 TabRow(
@@ -219,8 +240,11 @@ fun WheelRadioApp(
                         AppTab.BLUETOOTH -> BluetoothTab(model)
                     }
                 }
+                // A few pixels of dark line, so the mini player doesn't run into the last list row.
+                Box(Modifier.fillMaxWidth().height(4.dp).background(DividerColor))
                 MiniPlayer(model, onPlayPause, onNext, onPrevious)
             }
+            if (model.bigPlayer) BigPlayer(model, onPlayPause, onNext, onPrevious)
             // Overlays in the same window, so wheel keys keep reaching MainActivity while they are open.
             if (model.showSettings) SettingsScreen(model)
             if (model.showKeyLog) KeyLogDialog { model.showKeyLog = false }
@@ -237,7 +261,7 @@ private fun TopBar(model: AppModel) {
         TextField(
             value = model.query,
             onValueChange = model::updateQuery,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).onFocusChanged { model.searchFocused = it.isFocused },
             singleLine = true,
             placeholder = { Text(stringResource(R.string.search_hint), fontSize = 18.sp) },
             leadingIcon = { Icon(Icons.Filled.Search, null) },
@@ -478,21 +502,13 @@ private fun BluetoothTab(model: AppModel) {
             Modifier.fillMaxSize().padding(vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                Modifier.size(220.dp).clip(RoundedCornerShape(20.dp)).background(Placeholder),
-                contentAlignment = Alignment.Center,
-            ) {
-                val art = bt.art
-                if (art != null) androidx.compose.foundation.Image(
-                    art.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
-                ) else Text("BT", fontSize = 64.sp, color = TextDim, fontWeight = FontWeight.Bold)
-            }
+            BtCover(220)
             Spacer(Modifier.width(32.dp))
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 Text(stringResource(R.string.bt_from_phone, bt.source), fontSize = 16.sp, color = TextDim)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    bt.title.ifBlank { stringResource(R.string.nothing_playing) }, fontSize = 30.sp, fontWeight = FontWeight.Bold,
+                    bt.title.ifBlank { stringResource(R.string.nothing_playing) }, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold,
                     color = TextMain, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
                 if (bt.artist.isNotBlank()) Text(bt.artist, fontSize = 20.sp, color = TextDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -515,6 +531,13 @@ private fun BluetoothTab(model: AppModel) {
                     fontSize = 15.sp, color = TextDim,
                 )
                 if (bt.title.isBlank()) {
+                    if (bt.needsAccess) {
+                        // The car's Bluetooth music app may be playing, but its session is hidden without access.
+                        Spacer(Modifier.height(12.dp))
+                        Text(stringResource(R.string.bt_setup_text), fontSize = 15.sp, color = Warning)
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = { openNotificationAccess(context) }) { Text(stringResource(R.string.open_settings)) }
+                    }
                     Spacer(Modifier.height(12.dp))
                     CarBluetoothAppButton(model)
                 }
@@ -546,18 +569,20 @@ private fun BluetoothTab(model: AppModel) {
                 )
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = {
-                        runCatching {
-                            context.startActivity(
-                                android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        }
-                    }) { Text(stringResource(R.string.open_settings)) }
+                    Button(onClick = { openNotificationAccess(context) }) { Text(stringResource(R.string.open_settings)) }
                     OutlinedButton(onClick = { bt.refresh() }) { Text(stringResource(R.string.retry)) }
                 }
             }
         }
+    }
+}
+
+private fun openNotificationAccess(context: android.content.Context) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     }
 }
 
@@ -654,6 +679,10 @@ private fun SettingsScreen(model: AppModel) {
                     stringResource(R.string.settings_weak_coverage), stringResource(R.string.settings_weak_coverage_hint),
                     s.weakCoverage,
                 ) { s.updateWeakCoverage(it) }
+                SwitchRow(
+                    stringResource(R.string.settings_big_player), stringResource(R.string.settings_big_player_hint),
+                    s.bigPlayer,
+                ) { s.updateBigPlayer(it) }
             }
             SettingsSection(stringResource(R.string.settings_home_country), stringResource(R.string.settings_home_country_hint)) {
                 val home = Country(s.homeCountry, s.homeCountry, 0)
@@ -813,7 +842,7 @@ private fun StationRow(s: Station, playing: Boolean, favorite: Boolean, onClick:
 }
 
 @Composable
-private fun Artwork(url: String, name: String, size: Int) {
+private fun Artwork(url: String, name: String, size: Int, data: Any? = null, corner: Int = 10) {
     val fallback = @Composable {
         Box(
             Modifier.fillMaxSize().background(Placeholder),
@@ -822,41 +851,83 @@ private fun Artwork(url: String, name: String, size: Int) {
             Text(name.take(1).uppercase(), fontSize = (size / 2.2).sp, color = TextMain, fontWeight = FontWeight.Bold)
         }
     }
-    Box(Modifier.size(size.dp).clip(RoundedCornerShape(10.dp))) {
-        if (url.isBlank()) fallback()
+    Box(Modifier.size(size.dp).clip(RoundedCornerShape(corner.dp))) {
+        if (url.isBlank() && data == null) fallback()
         else SubcomposeAsyncImage(
-            model = url, contentDescription = null, contentScale = ContentScale.Crop,
+            model = data ?: url, contentDescription = null, contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize().background(Color.White),
             loading = { fallback() }, error = { fallback() },
         )
     }
 }
 
+/** The phone's cover art, or "BT" until the source sends one. */
+@Composable
+private fun BtCover(size: Int, corner: Int = 20) {
+    Box(
+        Modifier.size(size.dp).clip(RoundedCornerShape(corner.dp)).background(Placeholder),
+        contentAlignment = Alignment.Center,
+    ) {
+        val art = BluetoothBridge.art
+        if (art != null) androidx.compose.foundation.Image(
+            art.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+        ) else Text("BT", fontSize = (size / 3.4).sp, color = TextDim, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** What the mini player shows: our radio, a local / USB song, or the phone over Bluetooth. */
+private enum class Source(val icon: ImageVector, @androidx.annotation.StringRes val label: Int) {
+    RADIO(PlayerIcons.Radio, R.string.tab_radio),
+    MUSIC(PlayerIcons.MusicNote, R.string.tab_music),
+    BLUETOOTH(PlayerIcons.Bluetooth, R.string.tab_bluetooth),
+}
+
+/**
+ * The bar at the bottom. It follows Bluetooth while that is the source the driver chose (Bluetooth tab or the
+ * car's Bluetooth player), otherwise our own player; a small icon in front of the title says which.
+ */
 @Composable
 private fun MiniPlayer(model: AppModel, onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit) {
     val now = model.now
+    val bt = BluetoothBridge
+    val useBt = bt.inUse
+    val source = when {
+        useBt -> Source.BLUETOOTH
+        now.station?.local == true -> Source.MUSIC
+        now.station != null -> Source.RADIO
+        else -> null
+    }
+    val title = if (useBt) bt.title else now.title
+    val playing = if (useBt) bt.isPlaying else now.isPlaying
     Row(
         Modifier.fillMaxWidth().background(Surface1).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Artwork(now.artwork, now.title.ifBlank { "?" }, 60)
+        if (useBt) BtCover(60, corner = 10) else Artwork(now.artwork, now.title.ifBlank { "?" }, 60, now.artworkData)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(
-                now.title.ifBlank { stringResource(R.string.nothing_playing) }, fontSize = 22.sp, color = TextMain,
-                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (source != null) {
+                    Icon(source.icon, stringResource(source.label), tint = Accent, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(
+                    title.ifBlank { stringResource(R.string.nothing_playing) }, fontSize = 22.sp, color = TextMain,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
             // A problem (retrying, no internet, station unavailable) beats "Connecting…" and the song title,
             // so a silent radio never just looks paused.
             val sub = when {
+                useBt -> bt.artist
                 now.status.isNotBlank() -> now.status
                 now.buffering -> stringResource(R.string.connecting)
                 else -> now.nowPlaying
             }
-            val subColor = if (now.status.isNotBlank()) Warning else TextDim
+            val subColor = if (!useBt && now.status.isNotBlank()) Warning else TextDim
             if (sub.isNotBlank()) Text(sub, fontSize = 16.sp, color = subColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (now.canShuffle) {
+        if (!useBt && now.canShuffle) {
             IconButton(onClick = { model.setShuffle(!now.shuffle) }, modifier = Modifier.size(56.dp)) {
                 Icon(
                     PlayerIcons.Shuffle, stringResource(if (now.shuffle) R.string.shuffle_on else R.string.shuffle_off),
@@ -865,16 +936,28 @@ private fun MiniPlayer(model: AppModel, onPlayPause: () -> Unit, onNext: () -> U
             }
             Spacer(Modifier.width(4.dp))
         }
-        RoundIconButton(PlayerIcons.Previous, stringResource(R.string.previous), onPrevious, size = 56, filled = false)
-        Spacer(Modifier.width(8.dp))
         RoundIconButton(
-            if (now.isPlaying) PlayerIcons.Pause else PlayerIcons.Play,
-            stringResource(if (now.isPlaying) R.string.pause else R.string.play), onPlayPause, size = 64,
+            PlayerIcons.Previous, stringResource(R.string.previous),
+            { if (useBt) bt.previous() else onPrevious() }, size = 56, filled = false,
         )
         Spacer(Modifier.width(8.dp))
-        RoundIconButton(PlayerIcons.Next, stringResource(R.string.next), onNext, size = 56, filled = false)
+        RoundIconButton(
+            if (playing) PlayerIcons.Pause else PlayerIcons.Play,
+            stringResource(if (playing) R.string.pause else R.string.play),
+            {
+                when {
+                    !useBt -> onPlayPause()
+                    bt.isPlaying -> bt.pause()
+                    else -> { model.pauseRadio(); bt.play() }
+                }
+            },
+            size = 64,
+        )
         Spacer(Modifier.width(8.dp))
-        val station = now.station
+        RoundIconButton(PlayerIcons.Next, stringResource(R.string.next), { if (useBt) bt.next() else onNext() }, size = 56, filled = false)
+        Spacer(Modifier.width(8.dp))
+        // Phone songs can't be favorites (there is nothing to replay them from), so the heart is off for Bluetooth.
+        val station = if (useBt) null else now.station
         IconButton(onClick = { station?.let(model::toggleFavorite) }, enabled = station != null, modifier = Modifier.size(56.dp)) {
             val fav = model.isFavorite(station?.id)
             Icon(
@@ -885,6 +968,135 @@ private fun MiniPlayer(model: AppModel, onPlayPause: () -> Unit, onNext: () -> U
             )
         }
     }
+}
+
+/**
+ * Full-screen "now playing", like the car's own music screen. Appears after [AppSettings.BIG_PLAYER_IDLE_MS]
+ * without a touch; a tap anywhere outside the buttons (or Back) returns to the list. Wheel keys keep working
+ * underneath, and it follows Bluetooth when that is what plays through the app.
+ */
+@Composable
+private fun BigPlayer(model: AppModel, onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit) {
+    val bt = BluetoothBridge
+    val useBt = bt.inUse
+    val now = model.now
+    if (if (useBt) bt.title.isBlank() else now.station == null) {
+        LaunchedEffect(Unit) { model.bigPlayer = false }
+        return
+    }
+    BackHandler { model.bigPlayer = false }
+
+    val title = if (useBt) bt.title else now.title
+    val sub = when {
+        useBt -> bt.artist
+        now.status.isNotBlank() -> now.status
+        now.buffering -> stringResource(R.string.connecting)
+        now.nowPlaying.isNotBlank() -> now.nowPlaying
+        else -> now.station?.subtitle.orEmpty()
+    }
+    val subColor = if (!useBt && now.status.isNotBlank()) Warning else TextDim
+    val playing = if (useBt) bt.isPlaying else now.isPlaying
+
+    var pos by remember { mutableStateOf(0L to 0L) }
+    LaunchedEffect(useBt) {
+        while (true) {
+            pos = if (useBt) bt.positionMs() to bt.durationMs else model.position()
+            delay(500)
+        }
+    }
+
+    BoxWithConstraints(
+        Modifier.fillMaxSize().background(Bg)
+            .pointerInput(Unit) { detectTapGestures { model.bigPlayer = false } }
+            .padding(horizontal = 48.dp, vertical = 32.dp),
+    ) {
+        val portrait = maxHeight > maxWidth
+        val artSize = (if (portrait) minOf(maxWidth.value * 0.7f, 420f) else minOf(maxHeight.value * 0.6f, 380f)).toInt()
+        val art = @Composable {
+            if (useBt) BtCover(artSize) else Artwork(now.artwork, title.ifBlank { "?" }, artSize, now.artworkData, corner = 20)
+        }
+        val info = @Composable { mod: Modifier ->
+            Column(mod, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    title.ifBlank { stringResource(R.string.nothing_playing) }, fontSize = 40.sp, lineHeight = 48.sp,
+                    fontWeight = FontWeight.Bold, color = TextMain, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+                if (sub.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        sub, fontSize = 24.sp, color = subColor, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
+                val (position, duration) = pos
+                if (duration > 0) {
+                    Spacer(Modifier.height(36.dp))
+                    var dragging by remember { mutableStateOf<Float?>(null) }
+                    Row(Modifier.widthIn(max = 900.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(formatTime(dragging?.toLong() ?: position), fontSize = 18.sp, color = TextDim)
+                        Slider(
+                            value = (dragging ?: position.toFloat()).coerceIn(0f, duration.toFloat()),
+                            valueRange = 0f..duration.toFloat(),
+                            onValueChange = { dragging = it },
+                            onValueChangeFinished = {
+                                dragging?.let { v -> if (useBt) bt.seekTo(v.toLong()) else model.seekTo(v.toLong()) }
+                                dragging = null
+                            },
+                            modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
+                        )
+                        Text(formatTime(duration), fontSize = 18.sp, color = TextDim)
+                    }
+                    Spacer(Modifier.height(28.dp))
+                } else Spacer(Modifier.height(48.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RoundIconButton(
+                        PlayerIcons.Previous, stringResource(R.string.previous),
+                        { if (useBt) bt.previous() else onPrevious() }, size = 96,
+                    )
+                    Spacer(Modifier.width(56.dp))
+                    Box(
+                        Modifier.size(120.dp).clip(CircleShape).background(Accent)
+                            .clickable { if (useBt) bt.playPause() else onPlayPause() },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            if (playing) PlayerIcons.Pause else PlayerIcons.Play,
+                            stringResource(if (playing) R.string.pause else R.string.play),
+                            tint = OnAccent, modifier = Modifier.size(64.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(56.dp))
+                    RoundIconButton(
+                        PlayerIcons.Next, stringResource(R.string.next),
+                        { if (useBt) bt.next() else onNext() }, size = 96,
+                    )
+                }
+            }
+        }
+        if (portrait) Column(
+            Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            art()
+            Spacer(Modifier.height(40.dp))
+            info(Modifier.fillMaxWidth())
+        } else Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            info(Modifier.weight(1f))
+            Spacer(Modifier.width(48.dp))
+            art()
+        }
+    }
+}
+
+private fun formatTime(ms: Long): String {
+    val total = (ms / 1000).coerceAtLeast(0)
+    val h = total / 3600
+    val m = (total % 3600) / 60
+    val sec = total % 60
+    return if (h > 0) String.format(Locale.ROOT, "%d:%02d:%02d", h, m, sec)
+    else String.format(Locale.ROOT, "%02d:%02d", m, sec)
 }
 
 @Composable
@@ -922,7 +1134,8 @@ private fun KeyLogDialog(onClose: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Column(
-            Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(24.dp).heightIn(max = 560.dp)
+            // Wide and tall, so a Bluetooth diagnostics dump can be photographed in a few screens.
+            Modifier.widthIn(max = 1500.dp).fillMaxWidth().padding(24.dp).heightIn(max = 900.dp)
                 .clip(RoundedCornerShape(16.dp)).background(Surface1)
                 .pointerInput(Unit) { detectTapGestures { } } // taps on the panel don't close it
                 .padding(20.dp)
@@ -936,8 +1149,13 @@ private fun KeyLogDialog(onClose: () -> Unit) {
                 }
             }
             Spacer(Modifier.height(12.dp))
-            TextButton(onClick = onClose, modifier = Modifier.align(Alignment.End)) {
-                Text(stringResource(R.string.close), fontSize = 18.sp)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                // Dumps Bluetooth profiles, media sessions and the car players' components into this log.
+                OutlinedButton(onClick = { BluetoothBridge.diagnose() }) {
+                    Text(stringResource(R.string.bt_diagnostics), fontSize = 16.sp)
+                }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onClose) { Text(stringResource(R.string.close), fontSize = 18.sp) }
             }
         }
     }

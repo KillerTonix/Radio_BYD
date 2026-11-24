@@ -29,6 +29,12 @@ class MainActivity : ComponentActivity() {
         }
         model.setShuffle = { on -> controller?.shuffleModeEnabled = on }
         model.pauseRadio = { controller?.pause() }
+        model.position = {
+            val c = controller
+            if (c == null) 0L to 0L
+            else c.currentPosition.coerceAtLeast(0) to (if (c.isCurrentMediaItemLive || c.duration == C.TIME_UNSET) 0L else c.duration)
+        }
+        model.seekTo = { ms -> controller?.seekTo(ms) }
         BluetoothBridge.start(this)
         model.loadCountries()
         setContent {
@@ -68,6 +74,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        BluetoothBridge.uiVisible = true
         lifecycleScope.launch {
             val token = SessionToken(this@MainActivity, ComponentName(this@MainActivity, RadioService::class.java))
             val c = MediaController.Builder(this@MainActivity, token)
@@ -84,7 +91,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Coming back to the app: show the list the driver left, and count the idle time from now.
+        model.bigPlayer = false
+        model.onUserTouch()
+    }
+
     override fun onStop() {
+        BluetoothBridge.uiVisible = false
         controller?.release()
         controller = null
         super.onStop()
@@ -100,6 +115,8 @@ class MainActivity : ComponentActivity() {
             title = title,
             nowPlaying = song,
             artwork = station?.favicon ?: "",
+            // Cover art embedded in a local / USB song (ID3 / FLAC picture), when there is one.
+            artworkData = p.mediaMetadata.artworkData?.takeIf { station?.local == true },
             isPlaying = p.isPlaying,
             buffering = p.playbackState == Player.STATE_BUFFERING,
             shuffle = p.shuffleModeEnabled,

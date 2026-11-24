@@ -2,6 +2,7 @@ package dev.wheelradio
 
 import android.content.Context
 import android.net.Uri
+import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -21,6 +22,7 @@ data class NowPlaying(
     val title: String = "",
     val nowPlaying: String = "",
     val artwork: String = "",
+    val artworkData: ByteArray? = null,
     val isPlaying: Boolean = false,
     val buffering: Boolean = false,
     val shuffle: Boolean = false,
@@ -41,13 +43,45 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
     /** Set by the activity: play the list in random order. */
     var playShuffled: (List<Station>) -> Unit = { }
 
+    /** Set by the activity: position and duration (ms) of what our player plays; duration <= 0 for live radio. */
+    var position: () -> Pair<Long, Long> = { 0L to 0L }
+
+    /** Set by the activity: jump to a position (ms) in a local / USB song. */
+    var seekTo: (Long) -> Unit = { }
+
     /** Set by the activity: pause our own player (before Bluetooth starts). */
     var pauseRadio: () -> Unit = { }
 
     /** Set by the activity: turn shuffle on / off for whatever is playing. */
     var setShuffle: (Boolean) -> Unit = { }
 
-    var tab by mutableStateOf(AppTab.COUNTRIES)
+    private var tabState by mutableStateOf(AppTab.entries.firstOrNull { it.name == repo.lastTab } ?: AppTab.COUNTRIES)
+
+    /** The open tab; remembered across app restarts. */
+    var tab: AppTab
+        get() = tabState
+        set(value) {
+            tabState = value
+            repo.lastTab = value.name
+        }
+
+    /** The full-screen player shown after the screen goes untouched for a while. */
+    var bigPlayer by mutableStateOf(false)
+
+    /** Uptime of the last touch anywhere in the app (not Compose state: it changes on every touch). */
+    @Volatile var lastTouchAt = SystemClock.uptimeMillis()
+        private set
+
+    /** The search field has focus: the driver types on the keyboard, whose touches the app doesn't see. */
+    var searchFocused = false
+
+    fun onUserTouch() { lastTouchAt = SystemClock.uptimeMillis() }
+
+    /** Time for the big player: idle long enough, nothing else on top, and something to show. */
+    fun bigPlayerDue(nowUptime: Long = SystemClock.uptimeMillis()): Boolean =
+        settings.bigPlayer && !bigPlayer && !showSettings && !showKeyLog && !searchFocused &&
+            nowUptime - lastTouchAt >= AppSettings.BIG_PLAYER_IDLE_MS &&
+            (if (BluetoothBridge.inUse) BluetoothBridge.title.isNotBlank() else now.station != null)
     var query by mutableStateOf("")
         private set
     var showKeyLog by mutableStateOf(false)

@@ -27,6 +27,8 @@ fun seedPrefs(queue: List<Station>, lastIndex: Int = 0, favorites: List<Station>
         .putInt("last_index", lastIndex)
         .putString("favorites", Station.listToJson(favorites))
         .putBoolean("shuffle", false)
+        // The idle big player would cover the list during the long playback waits; BigPlayer tests turn it on.
+        .putBoolean(AppSettings.KEY_BIG_PLAYER, false)
         .commit()
 }
 

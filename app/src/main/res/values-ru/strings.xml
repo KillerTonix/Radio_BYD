@@ -85,11 +85,14 @@
     <string name="settings_autoplay_hint">Продолжать последнюю станцию при запуске машины.</string>
     <string name="settings_weak_coverage">Режим слабой связи</string>
     <string name="settings_weak_coverage_hint">Давать станции 40 с вместо 20 с на запуск, прежде чем повторять или переключать. Помогает при плохом мобильном интернете.</string>
+    <string name="settings_big_player">Большой плеер в простое</string>
+    <string name="settings_big_player_hint">Если 12 секунд не касаться экрана, показывать то, что играет, на весь экран. Коснитесь, чтобы вернуться.</string>
     <string name="settings_home_country">Домашняя страна</string>
     <string name="settings_home_country_hint">Показывается первой во вкладке «Радио».</string>
     <string name="choose_country">Выберите домашнюю страну</string>
     <string name="cancel">Отмена</string>
     <string name="settings_diagnostics">Диагностика</string>
     <string name="open_keylog">Показать журнал кнопок руля</string>
+    <string name="bt_diagnostics">Диагностика Bluetooth</string>
     <string name="settings_version">Версия %s</string>
 </resources>

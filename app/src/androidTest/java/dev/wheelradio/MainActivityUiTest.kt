@@ -116,8 +116,8 @@ class MainActivityUiTest {
         assertThat(favoriteIds()).containsExactly("qa:fav:beta")
 
         compose.activityRule.scenario.recreate()
-        tab("RADIO").assertIsSelected() // a new AppModel starts on the first tab
-        tab("FAVORITES").performClick()
+        tab("FAVORITES").assertIsSelected() // the last open tab is remembered across restarts
+        tab("RADIO").assertIsNotSelected()
         compose.onNodeWithText("QA Fav Beta").assertIsDisplayed()
         compose.onNodeWithText("QA Fav Alpha").assertDoesNotExist()
     }

@@ -95,11 +95,14 @@
     <string name="settings_autoplay_hint">Resume the last station when the car starts.</string>
     <string name="settings_weak_coverage">Weak-coverage mode</string>
     <string name="settings_weak_coverage_hint">Give each station 40 s instead of 20 s to start before retrying or skipping. Helps on poor mobile data.</string>
+    <string name="settings_big_player">Big player when idle</string>
+    <string name="settings_big_player_hint">After 12 seconds without touching the screen, show what is playing full screen. Tap to return.</string>
     <string name="settings_home_country">Home country</string>
     <string name="settings_home_country_hint">Shown first in Radio.</string>
     <string name="choose_country">Choose your home country</string>
     <string name="cancel">Cancel</string>
     <string name="settings_diagnostics">Diagnostics</string>
     <string name="open_keylog">Show wheel button log</string>
+    <string name="bt_diagnostics">Bluetooth diagnostics</string>
     <string name="settings_version">Version %s</string>
 </resources>

@@ -20,6 +20,6 @@ object KeyLog {
     fun add(source: String, message: String) {
         val line = "${fmt.format(Date())}  [$source] $message"
         Log.i("WheelRadio", line)
-        _entries.value = (listOf(line) + _entries.value).take(100)
+        _entries.value = (listOf(line) + _entries.value).take(400) // room for a Bluetooth diagnostics dump
     }
 }

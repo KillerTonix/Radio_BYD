@@ -29,6 +29,11 @@ class StationRepository(private val context: Context) {
         get() = prefs.getBoolean("shuffle", false)
         set(value) = prefs.edit().putBoolean("shuffle", value).apply()
 
+    /** The tab that was open last (AppTab name), so the app reopens where the driver left it. */
+    var lastTab: String?
+        get() = prefs.getString("last_tab", null)
+        set(value) = prefs.edit().putString("last_tab", value).apply()
+
     var musicFolder: String?
         get() = prefs.getString("music_folder", null)
         set(value) = prefs.edit().putString("music_folder", value).apply()

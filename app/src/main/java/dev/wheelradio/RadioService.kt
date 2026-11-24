@@ -84,7 +84,12 @@ class RadioService : MediaSessionService() {
         })
         // Resume the last station when the app starts, like a car radio, unless the user turned that off. Without
         // auto-play the player stays idle (no network use); Play, Next and Previous prepare it on demand.
-        if (AppSettings.autoplay(this)) {
+        // When the driver last listened to the phone over Bluetooth, starting the radio would take the car's audio
+        // focus and pause the phone (seen in the car), so Bluetooth stays the source instead.
+        if (BluetoothBridge.wasActive(this)) {
+            KeyLog.add("Player", "Bluetooth was the last source: not starting the radio")
+            BluetoothBridge.start(this)
+        } else if (AppSettings.autoplay(this)) {
             exo.prepare()
             exo.playWhenReady = true
         }
@@ -135,6 +140,14 @@ class RadioService : MediaSessionService() {
                         return true
                     }
                     KeyLog.add("Session", name)
+                    // While Bluetooth is the source, the wheel controls the phone, never the radio.
+                    val btAction = when (event.keyCode) {
+                        KeyEvent.KEYCODE_MEDIA_NEXT -> WheelAction.NEXT
+                        KeyEvent.KEYCODE_MEDIA_PREVIOUS -> WheelAction.PREVIOUS
+                        KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> WheelAction.PLAY_PAUSE
+                        else -> null
+                    }
+                    if (btAction != null && BluetoothBridge.handle(btAction)) return true
                     return when (event.keyCode) {
                         // Media3 maps a PLAY_PAUSE / HEADSETHOOK double-tap to "next". On a steering wheel a quick
                         // double press, a bouncing switch or one press delivered twice must never change the station.

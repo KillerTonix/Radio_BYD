@@ -41,6 +41,9 @@ class AppSettings(context: Context) {
         private set
     var homeCountry by mutableStateOf(homeCountry(prefs))
         private set
+    /** Show the full-screen player after [BIG_PLAYER_IDLE_MS] without a touch. */
+    var bigPlayer by mutableStateOf(prefs.getBoolean(KEY_BIG_PLAYER, true))
+        private set
 
     fun updateLanguage(v: Language) { language = v; prefs.edit().putString(KEY_LANGUAGE, v.tag).apply() }
     fun updateUiSize(v: UiSize) { uiSize = v; prefs.edit().putString(KEY_UI_SIZE, v.name).apply() }
@@ -48,6 +51,7 @@ class AppSettings(context: Context) {
     fun updateAutoplay(v: Boolean) { autoplay = v; prefs.edit().putBoolean(KEY_AUTOPLAY, v).apply() }
     fun updateWeakCoverage(v: Boolean) { weakCoverage = v; prefs.edit().putBoolean(KEY_WEAK_COVERAGE, v).apply() }
     fun updateHomeCountry(code: String) { homeCountry = code; prefs.edit().putString(KEY_HOME_COUNTRY, code).apply() }
+    fun updateBigPlayer(v: Boolean) { bigPlayer = v; prefs.edit().putBoolean(KEY_BIG_PLAYER, v).apply() }
 
     companion object {
         const val KEY_LANGUAGE = "language"
@@ -56,6 +60,10 @@ class AppSettings(context: Context) {
         const val KEY_AUTOPLAY = "autoplay"
         const val KEY_WEAK_COVERAGE = "weak_coverage"
         const val KEY_HOME_COUNTRY = "home_country"
+        const val KEY_BIG_PLAYER = "big_player"
+
+        /** Time without touching the screen before the big player appears. */
+        const val BIG_PLAYER_IDLE_MS = 12_000L
 
         const val DEFAULT_HOME_COUNTRY = "AM"
 

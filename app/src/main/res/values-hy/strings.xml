@@ -83,11 +83,14 @@
     <string name="settings_autoplay_hint">Շարունակել վերջին կայանը, երբ մեքենան միանում է։</string>
     <string name="settings_weak_coverage">Թույլ կապի ռեժիմ</string>
     <string name="settings_weak_coverage_hint">Յուրաքանչյուր կայանին տալ 40 վ՝ 20 վ-ի փոխարեն, նախքան կրկին փորձելը կամ անցնելը։ Օգնում է վատ բջջային ինտերնետի դեպքում։</string>
+    <string name="settings_big_player">Մեծ նվագարկիչ անգործության ժամանակ</string>
+    <string name="settings_big_player_hint">Եթե 12 վայրկյան չդիպչեք էկրանին, ընթացիկ հաղորդումը կցուցադրվի ամբողջ էկրանով։ Դիպչեք՝ վերադառնալու համար։</string>
     <string name="settings_home_country">Հայրենի երկիր</string>
     <string name="settings_home_country_hint">Ցուցադրվում է առաջինը «Ռադիո» բաժնում։</string>
     <string name="choose_country">Ընտրեք ձեր երկիրը</string>
     <string name="cancel">Չեղարկել</string>
     <string name="settings_diagnostics">Ախտորոշում</string>
     <string name="open_keylog">Ցույց տալ ղեկի կոճակների մատյանը</string>
+    <string name="bt_diagnostics">Bluetooth-ի ախտորոշում</string>
     <string name="settings_version">Տարբերակ %s</string>
 </resources>
