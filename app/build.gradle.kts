@@ -12,8 +12,8 @@ android {
         applicationId = "dev.wheelradio"
         minSdk = 29 // Android 10, as on the BYD Yuan Plus / Atto 3 DiLink head unit
         targetSdk = 34
-        versionCode = 10
-        versionName = "0.5.3"
+        versionCode = 11
+        versionName = "0.5.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

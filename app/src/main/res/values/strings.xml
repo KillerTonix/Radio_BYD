@@ -50,6 +50,7 @@
     <string name="retry">Retry</string>
     <string name="bt_setup_title">One-time setup needed</string>
     <string name="bt_setup_text">To control Bluetooth music, Wheel Radio needs notification access. Turn it on in settings, or run this once over ADB:</string>
+    <string name="bt_setup_text_adb">To control Bluetooth music, Wheel Radio needs notification access. The car doesn\'t open that settings page, so run this once over ADB:</string>
     <string name="open_settings">Open settings</string>
     <string name="bt_open_car_app">Open the car\'s Bluetooth music</string>
     <string name="bt_open_car_app_hint">Use this if your phone doesn\'t offer the car for music. Then come back here.</string>
@@ -97,6 +98,8 @@
     <string name="settings_weak_coverage_hint">Give each station 40 s instead of 20 s to start before retrying or skipping. Helps on poor mobile data.</string>
     <string name="settings_big_player">Big player when idle</string>
     <string name="settings_big_player_hint">After 12 seconds without touching the screen, show what is playing full screen. Tap to return.</string>
+    <string name="settings_covers_online">Find Bluetooth song covers online</string>
+    <string name="settings_covers_online_hint">The phone sends no pictures over Bluetooth, so covers are looked up on iTunes and Deezer by artist and song name. Uses mobile data.</string>
     <string name="settings_home_country">Home country</string>
     <string name="settings_home_country_hint">Shown first in Radio.</string>
     <string name="choose_country">Choose your home country</string>

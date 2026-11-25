@@ -65,8 +65,18 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
             repo.lastTab = value.name
         }
 
-    /** The full-screen player shown after the screen goes untouched for a while. */
-    var bigPlayer by mutableStateOf(false)
+    private var bigPlayerState by mutableStateOf(false)
+
+    /**
+     * The full-screen player shown after the screen goes untouched for a while. Closing it (Back, a tap) restarts
+     * the idle time: Back is a key, not a touch, and without this the big player came straight back a second later.
+     */
+    var bigPlayer: Boolean
+        get() = bigPlayerState
+        set(value) {
+            if (!value && bigPlayerState) onUserTouch()
+            bigPlayerState = value
+        }
 
     /** Uptime of the last touch anywhere in the app (not Compose state: it changes on every touch). */
     @Volatile var lastTouchAt = SystemClock.uptimeMillis()

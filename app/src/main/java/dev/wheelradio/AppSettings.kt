@@ -44,6 +44,9 @@ class AppSettings(context: Context) {
     /** Show the full-screen player after [BIG_PLAYER_IDLE_MS] without a touch. */
     var bigPlayer by mutableStateOf(prefs.getBoolean(KEY_BIG_PLAYER, true))
         private set
+    /** Look up Bluetooth songs' covers online (sends artist, title and album to iTunes / Deezer). */
+    var coversOnline by mutableStateOf(prefs.getBoolean(KEY_COVERS_ONLINE, true))
+        private set
 
     fun updateLanguage(v: Language) { language = v; prefs.edit().putString(KEY_LANGUAGE, v.tag).apply() }
     fun updateUiSize(v: UiSize) { uiSize = v; prefs.edit().putString(KEY_UI_SIZE, v.name).apply() }
@@ -52,6 +55,7 @@ class AppSettings(context: Context) {
     fun updateWeakCoverage(v: Boolean) { weakCoverage = v; prefs.edit().putBoolean(KEY_WEAK_COVERAGE, v).apply() }
     fun updateHomeCountry(code: String) { homeCountry = code; prefs.edit().putString(KEY_HOME_COUNTRY, code).apply() }
     fun updateBigPlayer(v: Boolean) { bigPlayer = v; prefs.edit().putBoolean(KEY_BIG_PLAYER, v).apply() }
+    fun updateCoversOnline(v: Boolean) { coversOnline = v; prefs.edit().putBoolean(KEY_COVERS_ONLINE, v).apply() }
 
     companion object {
         const val KEY_LANGUAGE = "language"
@@ -61,6 +65,7 @@ class AppSettings(context: Context) {
         const val KEY_WEAK_COVERAGE = "weak_coverage"
         const val KEY_HOME_COUNTRY = "home_country"
         const val KEY_BIG_PLAYER = "big_player"
+        const val KEY_COVERS_ONLINE = "covers_online"
 
         /** Time without touching the screen before the big player appears. */
         const val BIG_PLAYER_IDLE_MS = 12_000L
@@ -95,6 +100,8 @@ class AppSettings(context: Context) {
             else FIRST_AUDIO_TIMEOUT_MS
 
         fun homeCountry(context: Context): String = homeCountry(prefs(context))
+
+        fun coversOnline(context: Context): Boolean = prefs(context).getBoolean(KEY_COVERS_ONLINE, true)
 
         /** [base]'s resources in the app's chosen language, for text built outside the UI (e.g. RadioService). */
         fun localizedResources(base: Context, language: Language = language(base)): Resources {

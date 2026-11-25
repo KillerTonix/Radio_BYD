@@ -44,6 +44,7 @@
     <string name="retry">Повторить</string>
     <string name="bt_setup_title">Нужна разовая настройка</string>
     <string name="bt_setup_text">Чтобы управлять музыкой по Bluetooth, Wheel Radio нужен доступ к уведомлениям. Включите его в настройках или выполните один раз через ADB:</string>
+    <string name="bt_setup_text_adb">Чтобы управлять музыкой по Bluetooth, Wheel Radio нужен доступ к уведомлениям. Машина не открывает эту страницу настроек, поэтому выполните один раз через ADB:</string>
     <string name="open_settings">Открыть настройки</string>
     <string name="bt_open_car_app">Открыть Bluetooth-музыку машины</string>
     <string name="bt_open_car_app_hint">Используйте, если телефон не предлагает машину для музыки. Затем вернитесь сюда.</string>
@@ -87,6 +88,8 @@
     <string name="settings_weak_coverage_hint">Давать станции 40 с вместо 20 с на запуск, прежде чем повторять или переключать. Помогает при плохом мобильном интернете.</string>
     <string name="settings_big_player">Большой плеер в простое</string>
     <string name="settings_big_player_hint">Если 12 секунд не касаться экрана, показывать то, что играет, на весь экран. Коснитесь, чтобы вернуться.</string>
+    <string name="settings_covers_online">Искать обложки Bluetooth-песен в интернете</string>
+    <string name="settings_covers_online_hint">Телефон не передаёт картинки по Bluetooth, поэтому обложки ищутся в iTunes и Deezer по исполнителю и названию песни. Использует мобильный интернет.</string>
     <string name="settings_home_country">Домашняя страна</string>
     <string name="settings_home_country_hint">Показывается первой во вкладке «Радио».</string>
     <string name="choose_country">Выберите домашнюю страну</string>

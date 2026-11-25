@@ -10,6 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.shadows.ShadowSystemClock
+import java.time.Duration
 
 /** Tab memory and the idle rule for the big player. No network: nothing here loads the directory. */
 @RunWith(AndroidJUnit4::class)
@@ -54,6 +56,20 @@ class AppModelTest {
         assertThat(m.bigPlayerDue(idle)).isTrue()
         m.bigPlayer = true
         assertThat(m.bigPlayerDue(idle)).isFalse() // already showing
+    }
+
+    /** Car test 0.5.3: Back left the big player, and the idle check reopened it a second later. */
+    @Test fun closing_the_big_player_restarts_the_idle_time() {
+        val m = model()
+        m.now = NowPlaying(station = station, title = station.name, isPlaying = true)
+        val idle = SystemClock.uptimeMillis() + AppSettings.BIG_PLAYER_IDLE_MS + 1
+        assertThat(m.bigPlayerDue(idle)).isTrue()
+        m.bigPlayer = true
+        ShadowSystemClock.advanceBy(Duration.ofMillis(AppSettings.BIG_PLAYER_IDLE_MS + 1)) // the screen sat idle
+        m.bigPlayer = false // Back
+        assertThat(m.lastTouchAt).isAtLeast(idle)
+        assertThat(m.bigPlayerDue(m.lastTouchAt + 1_000)).isFalse()
+        assertThat(m.bigPlayerDue(m.lastTouchAt + AppSettings.BIG_PLAYER_IDLE_MS)).isTrue()
     }
 
     @Test fun a_touch_restarts_the_idle_time() {

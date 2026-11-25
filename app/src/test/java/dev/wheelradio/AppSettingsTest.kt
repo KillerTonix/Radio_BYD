@@ -28,6 +28,7 @@ class AppSettingsTest {
         assertThat(s.weakCoverage).isFalse()
         assertThat(s.homeCountry).isEqualTo("AM")
         assertThat(s.bigPlayer).isTrue()
+        assertThat(s.coversOnline).isTrue()
         assertThat(AppSettings.firstAudioTimeoutMs(context)).isEqualTo(20_000L)
     }
 
@@ -40,6 +41,7 @@ class AppSettingsTest {
             updateWeakCoverage(true)
             updateHomeCountry("RU")
             updateBigPlayer(false)
+            updateCoversOnline(false)
         }
         val s = AppSettings(context)
         assertThat(s.language).isEqualTo(Language.HY)
@@ -49,6 +51,8 @@ class AppSettingsTest {
         assertThat(s.weakCoverage).isTrue()
         assertThat(s.homeCountry).isEqualTo("RU")
         assertThat(s.bigPlayer).isFalse()
+        assertThat(s.coversOnline).isFalse()
+        assertThat(AppSettings.coversOnline(context)).isFalse()
         // What RadioService reads
         assertThat(AppSettings.autoplay(context)).isFalse()
         assertThat(AppSettings.firstAudioTimeoutMs(context)).isEqualTo(40_000L)

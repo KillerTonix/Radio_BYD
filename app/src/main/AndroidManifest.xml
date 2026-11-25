@@ -18,6 +18,8 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- BYD Media Center: Bluetooth diagnostics read its services (Android 11+ hides other packages). -->
+        <package android:name="com.byd.mediacenter" />
         <!-- The car player's MediaBrowserService, to make Bluetooth play without opening it. -->
         <intent>
             <action android:name="android.media.browse.MediaBrowserService" />
@@ -41,6 +43,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Invisible: opens the car's Bluetooth player so that Android 10 lets Wheel Radio come back after it. -->
+        <activity
+            android:name=".CarPlayerLauncher"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <!-- Playback service. Exposed as both a Media3 session and a legacy MediaBrowserService
              so the head unit's media widgets / key router can find it. -->

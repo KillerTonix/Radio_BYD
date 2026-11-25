@@ -221,7 +221,12 @@ fun WheelRadioApp(
                     AppTab.entries.forEach { t ->
                         Tab(
                             selected = model.tab == t,
-                            onClick = { model.tab = t },
+                            onClick = {
+                                val openingBt = t == AppTab.BLUETOOTH && model.tab != t
+                                model.tab = t
+                                // Like the car's own media app: picking Bluetooth switches the sound to the phone.
+                                if (openingBt) BluetoothBridge.onTabOpened(model.pauseRadio)
+                            },
                             text = {
                                 Text(
                                     stringResource(t.title).uppercase(uiLocale()), fontSize = 18.sp,
@@ -495,7 +500,6 @@ private fun LocalTab(model: AppModel) {
 @Composable
 private fun BluetoothTab(model: AppModel) {
     val bt = BluetoothBridge
-    val context = LocalContext.current
     LaunchedEffect(Unit) { bt.refresh() }
     when (bt.status) {
         BluetoothBridge.Status.CONNECTED -> Row(
@@ -534,9 +538,7 @@ private fun BluetoothTab(model: AppModel) {
                     if (bt.needsAccess) {
                         // The car's Bluetooth music app may be playing, but its session is hidden without access.
                         Spacer(Modifier.height(12.dp))
-                        Text(stringResource(R.string.bt_setup_text), fontSize = 15.sp, color = Warning)
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = { openNotificationAccess(context) }) { Text(stringResource(R.string.open_settings)) }
+                        NotificationAccessHelp(fontSize = 15, textColor = Warning)
                     }
                     Spacer(Modifier.height(12.dp))
                     CarBluetoothAppButton(model)
@@ -561,21 +563,36 @@ private fun BluetoothTab(model: AppModel) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(stringResource(R.string.bt_setup_title), fontSize = 22.sp, color = TextMain, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.bt_setup_text), fontSize = 17.sp, color = TextDim)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "adb shell cmd notification allow_listener dev.wheelradio/dev.wheelradio.MediaListener",
-                    fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = LogText,
-                )
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = { openNotificationAccess(context) }) { Text(stringResource(R.string.open_settings)) }
-                    OutlinedButton(onClick = { bt.refresh() }) { Text(stringResource(R.string.retry)) }
-                }
+                NotificationAccessHelp(fontSize = 17, textColor = TextDim)
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(onClick = { bt.refresh() }) { Text(stringResource(R.string.retry)) }
             }
         }
     }
 }
+
+/**
+ * How to give notification access: the ADB command always, and the system settings page where the car allows
+ * it. BYD DiLink refuses that page ("Multimedia system does not support this operation"), so no button there.
+ */
+@Composable
+private fun NotificationAccessHelp(fontSize: Int, textColor: Color) {
+    val context = LocalContext.current
+    val blocked = remember { BluetoothBridge.notificationSettingsBlocked(context) }
+    Text(
+        stringResource(if (blocked) R.string.bt_setup_text_adb else R.string.bt_setup_text),
+        fontSize = fontSize.sp, color = textColor,
+    )
+    Spacer(Modifier.height(8.dp))
+    Text(NOTIFICATION_ACCESS_ADB, fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = LogText)
+    if (!blocked) {
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = { openNotificationAccess(context) }) { Text(stringResource(R.string.open_settings)) }
+    }
+}
+
+private const val NOTIFICATION_ACCESS_ADB =
+    "adb shell cmd notification allow_listener dev.wheelradio/dev.wheelradio.MediaListener"
 
 private fun openNotificationAccess(context: android.content.Context) {
     runCatching {
@@ -683,6 +700,10 @@ private fun SettingsScreen(model: AppModel) {
                     stringResource(R.string.settings_big_player), stringResource(R.string.settings_big_player_hint),
                     s.bigPlayer,
                 ) { s.updateBigPlayer(it) }
+                SwitchRow(
+                    stringResource(R.string.settings_covers_online), stringResource(R.string.settings_covers_online_hint),
+                    s.coversOnline,
+                ) { s.updateCoversOnline(it) }
             }
             SettingsSection(stringResource(R.string.settings_home_country), stringResource(R.string.settings_home_country_hint)) {
                 val home = Country(s.homeCountry, s.homeCountry, 0)
@@ -1030,7 +1051,19 @@ private fun BigPlayer(model: AppModel, onPlayPause: () -> Unit, onNext: () -> Un
                     )
                 }
                 val (position, duration) = pos
-                if (duration > 0) {
+                if (duration > 0 && useBt && !bt.canSeek) {
+                    // Bluetooth (AVRCP) can't jump to a position: show the progress without pretending it can.
+                    Spacer(Modifier.height(36.dp))
+                    Row(Modifier.widthIn(max = 900.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(formatTime(position), fontSize = 18.sp, color = TextDim)
+                        LinearProgressIndicator(
+                            progress = { (position.toFloat() / duration).coerceIn(0f, 1f) },
+                            modifier = Modifier.weight(1f).padding(horizontal = 16.dp).height(6.dp).clip(CircleShape),
+                        )
+                        Text(formatTime(duration), fontSize = 18.sp, color = TextDim)
+                    }
+                    Spacer(Modifier.height(28.dp))
+                } else if (duration > 0) {
                     Spacer(Modifier.height(36.dp))
                     var dragging by remember { mutableStateOf<Float?>(null) }
                     Row(Modifier.widthIn(max = 900.dp), verticalAlignment = Alignment.CenterVertically) {

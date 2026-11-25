@@ -14,6 +14,7 @@ import android.media.session.MediaSessionManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import java.util.concurrent.Executors
 import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaControllerCompat
@@ -51,6 +52,12 @@ object BluetoothBridge {
         private set
     /** Song length in ms, 0 when the source doesn't say. */
     var durationMs by mutableStateOf(0L)
+        private set
+    /**
+     * The source accepts a jump to a position. AVRCP has no such command: a phone over Bluetooth only offers
+     * play / pause / stop / next / previous (car test: actions=0x244037), so the timeline is display-only then.
+     */
+    var canSeek by mutableStateOf(false)
         private set
     /** Other apps' media sessions are hidden from us until notification access is granted. */
     var needsAccess by mutableStateOf(false)
@@ -112,7 +119,8 @@ object BluetoothBridge {
     private val watcher = object : MediaControllerCompat.Callback() {
         override fun onMetadataChanged(metadata: MediaMetadataCompat?) {
             choose()
-            if (art == null) borrowArt() // e.g. the car's own player got the cover after AVRCP sent the title
+            // e.g. the car's own player got the cover after AVRCP sent the title; it beats one found online.
+            if (art == null || artFromWeb) borrowArt()
         }
         override fun onPlaybackStateChanged(state: PlaybackStateCompat?) = choose()
     }
@@ -263,7 +271,9 @@ object BluetoothBridge {
         title = ""
         artist = ""
         art = null
+        artFromWeb = false
         durationMs = 0
+        canSeek = false
         lastState = null
     }
 
@@ -271,23 +281,29 @@ object BluetoothBridge {
         val newTitle = m?.getString(MediaMetadataCompat.METADATA_KEY_TITLE) ?: ""
         val songChanged = newTitle != title
         title = newTitle
-        artist = listOfNotNull(
-            m?.getString(MediaMetadataCompat.METADATA_KEY_ARTIST),
-            m?.getString(MediaMetadataCompat.METADATA_KEY_ALBUM),
-        ).filter { it.isNotBlank() }.joinToString(" · ")
+        val songArtist = m?.getString(MediaMetadataCompat.METADATA_KEY_ARTIST).orEmpty()
+        val songAlbum = m?.getString(MediaMetadataCompat.METADATA_KEY_ALBUM).orEmpty()
+        artist = listOf(songArtist, songAlbum).filter { it.isNotBlank() }.joinToString(" · ")
         durationMs = m?.getLong(MediaMetadataCompat.METADATA_KEY_DURATION)?.coerceAtLeast(0) ?: 0
         val bitmap = bitmapOf(m)
         val uri = artUriOf(m)
+        var searching = false
         when {
-            bitmap != null -> art = bitmap
+            bitmap != null -> { art = bitmap; artFromWeb = false }
             uri != null -> if (uri != artUri || art == null) { if (songChanged) art = null; artUri = uri; loadArt(uri, newTitle) }
-            else -> { art = null; borrowArt() }
+            else -> {
+                // Keep a cover found online while the same song only updates its details.
+                if (songChanged || !artFromWeb) { art = null; artFromWeb = false }
+                borrowArt()
+                if (art == null) searching = findCoverOnline(newTitle, songArtist, songAlbum)
+            }
         }
         if (songChanged && newTitle.isNotBlank()) KeyLog.add(
             "BT", "song \"$newTitle\" from ${controller?.packageName}, cover: " + when {
                 bitmap != null -> "picture ${bitmap.width}x${bitmap.height}"
                 uri != null -> "link $uri"
                 art != null -> "borrowed from another app"
+                searching -> "none, looking online"
                 else -> "none"
             }
         )
@@ -325,12 +341,45 @@ object BluetoothBridge {
         val bitmap = bitmapOf(donor.metadata)
         if (bitmap != null) {
             art = bitmap
+            artFromWeb = false
             KeyLog.add("BT", "cover for \"$title\" from ${donor.packageName}")
         } else artUriOf(donor.metadata)?.let { loadArt(it, title) }
     }
 
+    /** The cover shown came from [CoverSearch]; any cover from the phone or the car's player replaces it. */
+    private var artFromWeb = false
+    private val coverLookup = Executors.newSingleThreadExecutor()
+    /** The last song an online search was logged for, so metadata updates don't repeat the line. */
+    private var coverLoggedFor = ""
+
+    /**
+     * Looks the song up online when the phone and the car's player give no cover (see [CoverSearch]).
+     * Returns false when it doesn't search: the setting is off, or there's no artist to go by.
+     */
+    private fun findCoverOnline(forTitle: String, songArtist: String, songAlbum: String): Boolean {
+        val ctx = appContext ?: return false
+        if (!AppSettings.coversOnline(ctx) || forTitle.isBlank() || songArtist.isBlank()) return false
+        coverLookup.execute {
+            if (title != forTitle) return@execute // already the next song
+            val hit = runCatching { CoverSearch.find(songArtist, forTitle, songAlbum) }.getOrNull()
+            main.post {
+                val log = coverLoggedFor != forTitle
+                coverLoggedFor = forTitle
+                when {
+                    title != forTitle -> Unit
+                    hit != null -> {
+                        if (log) KeyLog.add("BT", "cover for \"$forTitle\" found online (${hit.service})")
+                        loadArt(hit.url, forTitle, fromWeb = true)
+                    }
+                    log -> KeyLog.add("BT", "no cover online for \"$forTitle\" by $songArtist")
+                }
+            }
+        }
+        return true
+    }
+
     /** Reads a cover given as a link (content://, file:// or http) off the main thread, scaled to about 512 px. */
-    private fun loadArt(uri: String, forTitle: String) {
+    private fun loadArt(uri: String, forTitle: String, fromWeb: Boolean = false) {
         val ctx = appContext ?: return
         Thread {
             val bmp = runCatching {
@@ -345,15 +394,24 @@ object BluetoothBridge {
                 while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 512) sample *= 2
                 open()?.use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample }) }
             }.onFailure { KeyLog.add("BT", "couldn't load cover $uri: ${it.message}") }.getOrNull()
-            if (bmp != null) main.post { if (title == forTitle) art = bmp }
+            if (bmp != null) main.post {
+                // An online cover never replaces one that came from the phone or the car meanwhile.
+                if (title == forTitle && (!fromWeb || art == null || artFromWeb)) {
+                    art = bmp
+                    artFromWeb = fromWeb
+                }
+            }
         }.start()
     }
 
     private fun updateState(s: PlaybackStateCompat?) {
         lastState = s
         isPlaying = s?.state == PlaybackStateCompat.STATE_PLAYING || s?.state == PlaybackStateCompat.STATE_BUFFERING
+        canSeek = supportsSeek(s?.actions ?: 0)
         if (isPlaying) active = true
     }
+
+    internal fun supportsSeek(actions: Long): Boolean = (actions and PlaybackStateCompat.ACTION_SEEK_TO) != 0L
 
     /** Current position in ms, run forward from the source's last report while playing. */
     fun positionMs(): Long {
@@ -371,14 +429,55 @@ object BluetoothBridge {
     fun playPause() = if (isPlaying) pause() else play()
     fun next() { controller?.transportControls?.skipToNext() }
     fun previous() { controller?.transportControls?.skipToPrevious() }
-    fun seekTo(ms: Long) { controller?.transportControls?.seekTo(ms) }
+    fun seekTo(ms: Long) { if (canSeek) controller?.transportControls?.seekTo(ms) }
+
+    /**
+     * A phone is connected to the car over Bluetooth (media or calls), or null when that can't be read.
+     * Opening the Bluetooth tab only switches the car to Bluetooth when a phone is there to play.
+     */
+    fun phoneConnected(): Boolean? {
+        val ctx = appContext ?: return null
+        return runCatching {
+            val adapter = (ctx.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+                ?: return@runCatching false
+            if (!adapter.isEnabled) return@runCatching false
+            // A2DP sink (11), AVRCP controller (12) and HFP client (16): the car's side of a phone connection.
+            listOf(11, 12, 16).any { adapter.getProfileConnectionState(it) == BluetoothProfile.STATE_CONNECTED }
+        }.getOrNull()
+    }
+
+    /** The Bluetooth tab was opened by the driver: make Bluetooth the source, like the car's own media app. */
+    fun onTabOpened(pauseRadio: () -> Unit) {
+        if (isPlaying) { active = true; return }
+        val phone = phoneConnected()
+        if (phone == false) {
+            KeyLog.add("BT", "Bluetooth tab: no phone connected, the radio keeps playing")
+            return
+        }
+        KeyLog.add("BT", "Bluetooth tab opened: switching to Bluetooth")
+        pauseRadio()
+        activate()
+    }
+
+    /**
+     * BYD DiLink answers the system's notification-access page with "Multimedia system does not support this
+     * operation" (Yuan Plus car test, 0.5.3), so there the app offers only the ADB command.
+     */
+    fun notificationSettingsBlocked(ctx: Context): Boolean =
+        runCatching { ctx.packageManager.getPackageInfo(BYD_MEDIA_CENTER, 0) }.isSuccess
 
     // ---------- Making Bluetooth the car's audio source ----------
 
     private const val AUTO_START_DELAY_MS = 2_500L
     private const val STEP_WAIT_MS = 3_000L
-    private const val CAR_APP_WAIT_MS = 2_000L
+    /** Media Center stays in front at least this long, so it has time to claim the Bluetooth source… */
+    internal const val CAR_APP_MIN_WAIT_MS = 3_000L
+    /** …and at most this long. Must stay well under Android 10's 10 s window for coming back (see [CarPlayerLauncher]). */
+    internal const val CAR_APP_MAX_WAIT_MS = 5_000L
+    private const val RETURN_POLL_MS = 250L
+    private const val RETURN_CHECK_MS = 1_500L
     private const val AVRCP_PACKAGE = "com.android.bluetooth"
+    private const val BYD_MEDIA_CENTER = "com.byd.mediacenter"
 
     private var activation: Runnable? = null
     /** The car player's MediaBrowserService (e.g. BYD Media Center), once step 3 connected to it. */
@@ -394,7 +493,7 @@ object BluetoothBridge {
      *  1. Play through Android's AVRCP controller (stock Android 10 then takes the audio focus for Bluetooth).
      *  2. Play on the car player's media session (visible with notification access).
      *  3. Play through the car player's MediaBrowserService (needs no notification access).
-     *  4. Only while our screen is in front: open the car's player and come back 2 s later.
+     *  4. Only while our screen is in front: open the car's player and come back 3–5 s later.
      * Every step is logged, so one drive shows which one BYD honours.
      */
     fun activate() {
@@ -412,7 +511,7 @@ object BluetoothBridge {
                 true
             },
             Step("play through the car player's media browser") { playThroughCarBrowser() },
-            Step("open the car's player and come back", waitMs = CAR_APP_WAIT_MS + STEP_WAIT_MS) { openCarPlayerAndReturn() },
+            Step("open the car's player and come back", waitMs = CAR_APP_MAX_WAIT_MS + STEP_WAIT_MS) { openCarPlayerAndReturn() },
         )
         runStep(steps, 0)
     }
@@ -500,22 +599,47 @@ object BluetoothBridge {
         // Only the car's Bluetooth player (Media Center / Bluetooth Music), never an online music app like Kuwo.
         val app = findCarBluetoothApps(ctx).firstOrNull { carAppScore(it) == 0 } ?: return false
         KeyLog.add("BT", "  -> opening ${app.label} (${app.packageName})")
-        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-            .setComponent(ComponentName(app.packageName, app.className ?: return false))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        ctx.startActivity(intent)
-        main.postDelayed({
-            // Android 10 lets an app that started an activity in the last 10 s bring itself back to the front.
+        // Through our own short-lived activity: that is what lets Android 10 bring Wheel Radio back afterwards.
+        ctx.startActivity(
+            CarPlayerLauncher.intent(ctx, ComponentName(app.packageName, app.className ?: return false))
+        )
+        val openedAt = SystemClock.uptimeMillis()
+        val poll = object : Runnable {
+            override fun run() {
+                val elapsed = SystemClock.uptimeMillis() - openedAt
+                if (!timeToReturn(elapsed, isPlaying)) {
+                    main.postDelayed(this, RETURN_POLL_MS)
+                    return
+                }
+                returnToApp(ctx, elapsed)
+            }
+        }
+        main.postDelayed(poll, CAR_APP_MIN_WAIT_MS)
+        return true
+    }
+
+    /** Come back once Bluetooth plays (after at least 3 s), or after 5 s whatever happened. */
+    internal fun timeToReturn(elapsedMs: Long, playing: Boolean): Boolean =
+        elapsedMs >= CAR_APP_MAX_WAIT_MS || (playing && elapsedMs >= CAR_APP_MIN_WAIT_MS)
+
+    private fun returnToApp(ctx: Context, afterMs: Long) {
+        if (uiVisible) {
+            KeyLog.add("BT", "already back in Wheel Radio")
+        } else {
             runCatching {
                 ctx.startActivity(
                     Intent(ctx, MainActivity::class.java)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                 )
-            }.onSuccess { KeyLog.add("BT", "back to Wheel Radio") }
-                .onFailure { KeyLog.add("BT", "couldn't come back to Wheel Radio: ${it.message}") }
-            refresh()
-        }, CAR_APP_WAIT_MS)
-        return true
+            }.onSuccess {
+                KeyLog.add("BT", "back to Wheel Radio after ${afterMs / 100 / 10.0} s (Bluetooth ${if (isPlaying) "plays" else "still silent"})")
+            }.onFailure { KeyLog.add("BT", "couldn't come back to Wheel Radio: ${it.message}") }
+            // Android drops a blocked activity start without an error, so check that we really are in front.
+            main.postDelayed({
+                if (!uiVisible) KeyLog.add("BT", "Wheel Radio is still not in front: Android blocked the return")
+            }, RETURN_CHECK_MS)
+        }
+        refresh()
     }
 
     // ---------- Diagnostics ----------
@@ -551,7 +675,82 @@ object BluetoothBridge {
         val packages = (findCarBluetoothApps(ctx).filter { carAppScore(it) == 0 }.map { it.packageName } + "com.byd.mediacenter")
             .distinct()
         packages.forEach { describePackage(pm, it) }
+        packages.forEach { probeDataServices(ctx, pm, it) }
         KeyLog.add("Diag", "done")
+    }
+
+    /**
+     * Media Center shows the phone's cover (Yuan Plus car test: Spotify on a Pixel 7 Pro), which reaches it through
+     * BYD's own Bluetooth stack, not Android's AVRCP. It exports `com.byd.music.data.AudioDataService` with no
+     * permission, probably what the launcher widget and the cluster read the song from. Its interface isn't
+     * documented, so connect once, and log the interface name and its methods (read from Media Center's own
+     * classes), plus the protection level of the permissions on the other services. That tells us whether, and
+     * how, Wheel Radio can take the cover from there.
+     */
+    private fun probeDataServices(ctx: Context, pm: PackageManager, pkg: String) {
+        val services = runCatching { pm.getPackageInfo(pkg, PackageManager.GET_SERVICES).services }.getOrNull()
+            ?.filter { it.exported } ?: return
+        services.mapNotNull { it.permission }.distinct().forEach { p ->
+            val level = runCatching {
+                when (pm.getPermissionInfo(p, 0).protectionLevel and android.content.pm.PermissionInfo.PROTECTION_MASK_BASE) {
+                    android.content.pm.PermissionInfo.PROTECTION_NORMAL -> "normal (any app may use it)"
+                    android.content.pm.PermissionInfo.PROTECTION_DANGEROUS -> "dangerous (user must allow)"
+                    android.content.pm.PermissionInfo.PROTECTION_SIGNATURE -> "signature (BYD apps only)"
+                    else -> "system"
+                }
+            }.getOrDefault("not declared")
+            KeyLog.add("Diag", "  permission $p: $level")
+        }
+        val browser = mediaBrowserServices(ctx).toSet()
+        services.filter { it.permission == null && ComponentName(pkg, it.name) !in browser }.forEach { s ->
+            val component = ComponentName(pkg, s.name)
+            val conn = object : android.content.ServiceConnection {
+                override fun onServiceConnected(name: ComponentName, binder: android.os.IBinder?) {
+                    runCatching { describeBinder(ctx, pkg, s.name, binder) }
+                        .onFailure { KeyLog.add("Diag", "  ${s.name}: couldn't read: $it") }
+                    main.post { runCatching { ctx.unbindService(this) } }
+                }
+                override fun onServiceDisconnected(name: ComponentName) = Unit
+            }
+            val bound = runCatching {
+                ctx.bindService(Intent().setComponent(component), conn, Context.BIND_AUTO_CREATE)
+            }.getOrElse { KeyLog.add("Diag", "  ${s.name}: bind refused: ${it.message}"); false }
+            if (!bound) KeyLog.add("Diag", "  ${s.name}: can't connect")
+        }
+    }
+
+    private fun describeBinder(ctx: Context, pkg: String, service: String, binder: android.os.IBinder?) {
+        val descriptor = binder?.interfaceDescriptor
+        KeyLog.add("Diag", "  $service: connected, interface ${descriptor ?: "none (binder ${binder?.javaClass?.name})"}")
+        if (descriptor.isNullOrBlank()) return
+        val loader = ctx.createPackageContext(pkg, Context.CONTEXT_INCLUDE_CODE or Context.CONTEXT_IGNORE_SECURITY).classLoader
+        // The interface, then the app's own types its methods use (callbacks, song data classes), one level deep.
+        val queue = ArrayDeque(listOf(descriptor))
+        val seen = HashSet<String>()
+        while (queue.isNotEmpty() && seen.size < 8) {
+            val name = queue.removeFirst()
+            if (!seen.add(name)) continue
+            val cls = runCatching { loader.loadClass(name) }.getOrNull()
+            if (cls == null) {
+                KeyLog.add("Diag", "    $name: class not found")
+                continue
+            }
+            val own = { c: Class<*> -> c.name.startsWith("com.byd") || c.name.startsWith(pkg) }
+            if (cls.isInterface) {
+                val methods = runCatching { cls.declaredMethods.toList() }.getOrDefault(emptyList()).sortedBy { it.name }
+                KeyLog.add("Diag", "    interface ${cls.name}: ${methods.size} methods")
+                methods.chunked(4).forEach { chunk ->
+                    KeyLog.add("Diag", "      " + chunk.joinToString("; ") { m ->
+                        "${m.name}(${m.parameterTypes.joinToString { it.simpleName }}): ${m.returnType.simpleName}"
+                    })
+                }
+                methods.flatMap { it.parameterTypes.toList() + it.returnType }.filter(own).forEach { queue.add(it.name) }
+            } else {
+                val fields = runCatching { cls.declaredFields.toList() }.getOrDefault(emptyList())
+                    .filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }
+                KeyLog.add("Diag", "    class ${cls.name}: " + fields.joinToString { "${it.name}: ${it.type.simpleName}" }.ifEmpty { "no fields" })
+            }
+        }
     }
 
     private fun connectionName(state: Int) = when (state) {

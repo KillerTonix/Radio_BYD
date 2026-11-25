@@ -42,6 +42,7 @@
     <string name="retry">Կրկնել</string>
     <string name="bt_setup_title">Անհրաժեշտ է մեկանգամյա կարգավորում</string>
     <string name="bt_setup_text">Bluetooth երաժշտությունը կառավարելու համար Wheel Radio-ին անհրաժեշտ է ծանուցումների հասանելիություն։ Միացրեք այն կարգավորումներում կամ մեկ անգամ գործարկեք ADB-ով՝</string>
+    <string name="bt_setup_text_adb">Bluetooth երաժշտությունը կառավարելու համար Wheel Radio-ին անհրաժեշտ է ծանուցումների հասանելիություն։ Մեքենան այդ կարգավորումների էջը չի բացում, ուստի մեկ անգամ գործարկեք ADB-ով՝</string>
     <string name="open_settings">Բացել կարգավորումները</string>
     <string name="bt_open_car_app">Բացել մեքենայի Bluetooth երաժշտությունը</string>
     <string name="bt_open_car_app_hint">Օգտագործեք, եթե հեռախոսը մեքենան չի առաջարկում երաժշտության համար։ Ապա վերադարձեք այստեղ։</string>
@@ -85,6 +86,8 @@
     <string name="settings_weak_coverage_hint">Յուրաքանչյուր կայանին տալ 40 վ՝ 20 վ-ի փոխարեն, նախքան կրկին փորձելը կամ անցնելը։ Օգնում է վատ բջջային ինտերնետի դեպքում։</string>
     <string name="settings_big_player">Մեծ նվագարկիչ անգործության ժամանակ</string>
     <string name="settings_big_player_hint">Եթե 12 վայրկյան չդիպչեք էկրանին, ընթացիկ հաղորդումը կցուցադրվի ամբողջ էկրանով։ Դիպչեք՝ վերադառնալու համար։</string>
+    <string name="settings_covers_online">Գտնել Bluetooth երգերի շապիկները համացանցում</string>
+    <string name="settings_covers_online_hint">Հեռախոսը Bluetooth-ով նկարներ չի փոխանցում, ուստի շապիկները որոնվում են iTunes-ում և Deezer-ում՝ ըստ կատարողի և երգի անվան։ Օգտագործում է բջջային ինտերնետ։</string>
     <string name="settings_home_country">Հայրենի երկիր</string>
     <string name="settings_home_country_hint">Ցուցադրվում է առաջինը «Ռադիո» բաժնում։</string>
     <string name="choose_country">Ընտրեք ձեր երկիրը</string>
