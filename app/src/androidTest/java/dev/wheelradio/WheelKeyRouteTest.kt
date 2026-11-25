@@ -182,7 +182,7 @@ class WheelKeyRouteTest {
 
     /** The key log used to be a Dialog window that took key focus; it is now an overlay in the activity's window. */
     @Test fun channel_up_switches_station_while_key_log_dialog_is_open() {
-        compose.onNodeWithContentDescription("Key log").performClick()
+        compose.openKeyLog()
         compose.waitUntil(5_000) { compose.onAllNodes(hasText("Wheel button log")).fetchSemanticsNodes().isNotEmpty() }
         val mark = keyLogMark()
         UiDevice.getInstance(instrumentation).pressKeyCode(KeyEvent.KEYCODE_CHANNEL_UP)

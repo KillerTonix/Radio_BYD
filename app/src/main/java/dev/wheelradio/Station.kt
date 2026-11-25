@@ -68,6 +68,10 @@ data class Station(
 }
 
 data class Country(val code: String, val name: String, val stationCount: Int) {
+    /** The country's name in [locale] (falls back to the English [name]). */
+    fun displayName(locale: java.util.Locale): String =
+        java.util.Locale("", code).getDisplayCountry(locale).takeIf { it.isNotBlank() && it != code } ?: name
+
     /** Flag emoji built from the two-letter ISO code. */
     val flag: String
         get() = code.uppercase().map { String(Character.toChars(0x1F1E6 + (it - 'A'))) }.joinToString("")

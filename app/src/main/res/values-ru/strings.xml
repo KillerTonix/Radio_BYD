@@ -1,0 +1,101 @@
+<resources>
+    <string name="tab_radio">Радио</string>
+    <string name="tab_favorites">Избранное</string>
+    <string name="tab_music">Музыка</string>
+    <string name="tab_bluetooth">Bluetooth</string>
+
+    <string name="search_hint">Поиск станций, стран, файлов…</string>
+    <string name="clear_search">Очистить поиск</string>
+    <string name="settings">Настройки</string>
+
+    <string name="countries_error">Не удалось загрузить страны. Проверьте подключение к интернету.</string>
+    <string name="stations_error">Не удалось загрузить станции.</string>
+    <string name="try_again">Повторить</string>
+    <plurals name="station_count">
+        <item quantity="one">%d станция</item>
+        <item quantity="few">%d станции</item>
+        <item quantity="many">%d станций</item>
+        <item quantity="other">%d станции</item>
+    </plurals>
+    <string name="play_country">Слушать: %s</string>
+    <string name="back">Назад</string>
+    <string name="no_stations">Станции не найдены.</string>
+    <string name="no_match">Нет станций по запросу «%s».</string>
+
+    <string name="fav_section_radio">Радио (%d)</string>
+    <string name="fav_section_songs">Песни (%d)</string>
+    <string name="shuffle_favorite_songs">Перемешать избранные песни (%d)</string>
+    <string name="favorites_empty">В избранном пока пусто. Нажмите на сердечко рядом со станцией, чтобы добавить её сюда.</string>
+    <string name="favorite_songs_empty">Избранных песен пока нет. Нажмите на сердечко рядом с песней во вкладке «Музыка».</string>
+
+    <string name="rescan">Пересканировать устройство и USB</string>
+    <string name="allow_music">Разрешить доступ к музыке</string>
+    <string name="shuffle_all">Перемешать все (%d)</string>
+    <string name="music_needs_access">Разрешите доступ, чтобы приложение нашло музыку в машине и на USB-флешках.</string>
+    <string name="music_empty">Аудиофайлы не найдены. Вставьте USB-флешку и нажмите «Пересканировать».</string>
+
+    <string name="bt_from_phone">С телефона · %s</string>
+    <string name="bt_previous_song">Предыдущая песня</string>
+    <string name="bt_next_song">Следующая песня</string>
+    <string name="bt_wheel_active">Кнопки на руле управляют музыкой по Bluetooth.</string>
+    <string name="bt_press_play">Нажмите здесь «Играть», чтобы кнопки на руле управляли Bluetooth.</string>
+    <string name="bt_not_found">Музыка по Bluetooth не найдена.</string>
+    <string name="bt_not_found_hint">Подключите телефон, включите на нём музыку (или в Bluetooth-приложении машины) и нажмите «Повторить».</string>
+    <string name="retry">Повторить</string>
+    <string name="bt_setup_title">Нужна разовая настройка</string>
+    <string name="bt_setup_text">Чтобы управлять музыкой по Bluetooth, Wheel Radio нужен доступ к уведомлениям. Включите его в настройках или выполните один раз через ADB:</string>
+    <string name="bt_setup_text_adb">Чтобы управлять музыкой по Bluetooth, Wheel Radio нужен доступ к уведомлениям. Машина не открывает эту страницу настроек, поэтому выполните один раз через ADB:</string>
+    <string name="open_settings">Открыть настройки</string>
+    <string name="bt_open_car_app">Открыть Bluetooth-музыку машины</string>
+    <string name="bt_open_car_app_hint">Используйте, если телефон не предлагает машину для музыки. Затем вернитесь сюда.</string>
+    <string name="bt_car_app_not_found">Не удалось найти автоматически. Откройте Bluetooth-музыку из меню машины.</string>
+
+    <string name="nothing_playing">Ничего не играет</string>
+    <string name="connecting">Подключение…</string>
+    <string name="play">Играть</string>
+    <string name="pause">Пауза</string>
+    <string name="next">Следующая</string>
+    <string name="previous">Предыдущая</string>
+    <string name="shuffle_on">Перемешивание вкл.</string>
+    <string name="shuffle_off">Перемешивание выкл.</string>
+    <string name="add_favorite">Добавить в избранное</string>
+    <string name="remove_favorite">Убрать из избранного</string>
+
+    <string name="status_retrying">Станция недоступна – повтор (%1$d/%2$d)…</string>
+    <string name="status_no_network">Нет интернета – станция продолжит играть, когда он появится</string>
+    <string name="status_unavailable">Станция недоступна – нажмите «Играть», чтобы попробовать снова</string>
+
+    <string name="keylog_title">Журнал кнопок руля</string>
+    <string name="keylog_hint">Нажимайте кнопки на руле – каждое нажатие появится здесь.</string>
+    <string name="close">Закрыть</string>
+
+    <string name="settings_language">Язык</string>
+    <string name="settings_ui_size">Размер интерфейса</string>
+    <string name="settings_ui_size_hint">Увеличивает или уменьшает текст, кнопки и списки.</string>
+    <string name="ui_size_small">Мелкий</string>
+    <string name="ui_size_normal">Обычный</string>
+    <string name="ui_size_large">Крупный</string>
+    <string name="ui_size_xlarge">Очень крупный</string>
+    <string name="settings_theme">Тема</string>
+    <string name="theme_dark">Тёмная</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_auto">Авто</string>
+    <string name="theme_auto_hint">Авто: тёмная с 19:00 до 7:00 и всегда, когда машина включает ночной режим.</string>
+    <string name="settings_playback">Воспроизведение</string>
+    <string name="settings_autoplay">Автовоспроизведение при запуске</string>
+    <string name="settings_autoplay_hint">Продолжать последнюю станцию при запуске машины.</string>
+    <string name="settings_weak_coverage">Режим слабой связи</string>
+    <string name="settings_weak_coverage_hint">Давать станции 40 с вместо 20 с на запуск, прежде чем повторять или переключать. Помогает при плохом мобильном интернете.</string>
+    <string name="settings_big_player">Большой плеер в простое</string>
+    <string name="settings_big_player_hint">Если 12 секунд не касаться экрана, показывать то, что играет, на весь экран. Коснитесь, чтобы вернуться.</string>
+    <string name="settings_covers_online">Искать обложки Bluetooth-песен в интернете</string>
+    <string name="settings_covers_online_hint">Телефон не передаёт картинки по Bluetooth, поэтому обложки ищутся в iTunes и Deezer по исполнителю и названию песни. Использует мобильный интернет.</string>
+    <string name="settings_home_country">Домашняя страна</string>
+    <string name="settings_home_country_hint">Показывается первой во вкладке «Радио».</string>
+    <string name="choose_country">Выберите домашнюю страну</string>
+    <string name="cancel">Отмена</string>
+    <string name="settings_diagnostics">Диагностика</string>
+    <string name="open_keylog">Показать журнал кнопок руля</string>
+    <string name="bt_diagnostics">Диагностика Bluetooth</string>
+    <string name="settings_version">Версия %s</string>
+</resources>

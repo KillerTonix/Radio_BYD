@@ -49,13 +49,6 @@
   "subtitle": "Armenia"
  },
  {
-  "id": "am:07",
-  "name": "Ռադիո Ազալիա",
-  "url": "https://stream-153.zeno.fm/s865660v7hhvv",
-  "favicon": "https://radio.armblog.net/azalia.jpg",
-  "subtitle": "Armenia"
- },
- {
   "id": "am:08",
   "name": "Ռադիո Արևիկ",
   "url": "https://eu1.stream4cast.com/proxy/aamiryan/stream",
@@ -114,7 +107,7 @@
  {
   "id": "am:16",
   "name": "Ռադիո Ջազ",
-  "url": "http://am.radioaurora.am:8010/jz",
+  "url": "https://de.auroramedia.am/jazz.mp3",
   "favicon": "https://radio.armblog.net/jazz.png",
   "subtitle": "Armenia"
  },
@@ -172,13 +165,6 @@
   "name": "Ռադիո Վան",
   "url": "https://radiovan.webcaramba.com/radiovan160.aacp",
   "favicon": "https://radio.armblog.net/van.png",
-  "subtitle": "Armenia"
- },
- {
-  "id": "am:25",
-  "name": "Ռադիո Վեմ",
-  "url": "https://eu1.stream4cast.com/proxy/vemradio/stream",
-  "favicon": "https://radio.armblog.net/vem.jpg",
   "subtitle": "Armenia"
  },
  {

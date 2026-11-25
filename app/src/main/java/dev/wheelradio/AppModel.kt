@@ -2,6 +2,7 @@ package dev.wheelradio
 
 import android.content.Context
 import android.net.Uri
+import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -12,8 +13,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class AppTab(val title: String) {
-    COUNTRIES("By countries"), FAVORITES("Favorites"), LOCAL("Local & USB"), BLUETOOTH("Bluetooth")
+enum class AppTab(@androidx.annotation.StringRes val title: Int) {
+    COUNTRIES(R.string.tab_radio), FAVORITES(R.string.tab_favorites), LOCAL(R.string.tab_music), BLUETOOTH(R.string.tab_bluetooth)
 }
 
 data class NowPlaying(
@@ -21,6 +22,7 @@ data class NowPlaying(
     val title: String = "",
     val nowPlaying: String = "",
     val artwork: String = "",
+    val artworkData: ByteArray? = null,
     val isPlaying: Boolean = false,
     val buffering: Boolean = false,
     val shuffle: Boolean = false,
@@ -33,6 +35,7 @@ data class NowPlaying(
 class AppModel(context: Context, private val scope: CoroutineScope) {
     private val appContext = context.applicationContext
     private val repo = StationRepository(appContext)
+    val settings = AppSettings(appContext)
 
     /** Set by the activity: replace the play queue and start playing at index. */
     var playList: (List<Station>, Int) -> Unit = { _, _ -> }
@@ -40,16 +43,59 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
     /** Set by the activity: play the list in random order. */
     var playShuffled: (List<Station>) -> Unit = { }
 
+    /** Set by the activity: position and duration (ms) of what our player plays; duration <= 0 for live radio. */
+    var position: () -> Pair<Long, Long> = { 0L to 0L }
+
+    /** Set by the activity: jump to a position (ms) in a local / USB song. */
+    var seekTo: (Long) -> Unit = { }
+
     /** Set by the activity: pause our own player (before Bluetooth starts). */
     var pauseRadio: () -> Unit = { }
 
     /** Set by the activity: turn shuffle on / off for whatever is playing. */
     var setShuffle: (Boolean) -> Unit = { }
 
-    var tab by mutableStateOf(AppTab.COUNTRIES)
+    private var tabState by mutableStateOf(AppTab.entries.firstOrNull { it.name == repo.lastTab } ?: AppTab.COUNTRIES)
+
+    /** The open tab; remembered across app restarts. */
+    var tab: AppTab
+        get() = tabState
+        set(value) {
+            tabState = value
+            repo.lastTab = value.name
+        }
+
+    private var bigPlayerState by mutableStateOf(false)
+
+    /**
+     * The full-screen player shown after the screen goes untouched for a while. Closing it (Back, a tap) restarts
+     * the idle time: Back is a key, not a touch, and without this the big player came straight back a second later.
+     */
+    var bigPlayer: Boolean
+        get() = bigPlayerState
+        set(value) {
+            if (!value && bigPlayerState) onUserTouch()
+            bigPlayerState = value
+        }
+
+    /** Uptime of the last touch anywhere in the app (not Compose state: it changes on every touch). */
+    @Volatile var lastTouchAt = SystemClock.uptimeMillis()
+        private set
+
+    /** The search field has focus: the driver types on the keyboard, whose touches the app doesn't see. */
+    var searchFocused = false
+
+    fun onUserTouch() { lastTouchAt = SystemClock.uptimeMillis() }
+
+    /** Time for the big player: idle long enough, nothing else on top, and something to show. */
+    fun bigPlayerDue(nowUptime: Long = SystemClock.uptimeMillis()): Boolean =
+        settings.bigPlayer && !bigPlayer && !showSettings && !showKeyLog && !searchFocused &&
+            nowUptime - lastTouchAt >= AppSettings.BIG_PLAYER_IDLE_MS &&
+            (if (BluetoothBridge.inUse) BluetoothBridge.title.isNotBlank() else now.station != null)
     var query by mutableStateOf("")
         private set
     var showKeyLog by mutableStateOf(false)
+    var showSettings by mutableStateOf(false)
     var now by mutableStateOf(NowPlaying())
 
     var countries by mutableStateOf<List<Country>>(emptyList())
@@ -68,6 +114,21 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
     var favorites by mutableStateOf(repo.favorites)
         private set
 
+    /** The user's pick between radio and song favorites; null until they tap one. */
+    private var favoriteSongsPicked by mutableStateOf<Boolean?>(null)
+
+    /**
+     * Whether the Favorites tab shows songs (local / USB) instead of radio stations. Until the user picks one it
+     * follows what is playing, and falls back to songs only when there are no radio favorites to show.
+     */
+    var showFavoriteSongs: Boolean
+        get() = favoriteSongsPicked ?: (now.station?.local == true ||
+            (favorites.none { !it.local } && favorites.any { it.local }))
+        set(value) { favoriteSongsPicked = value }
+
+    val favoriteRadios: List<Station> get() = favorites.filterNot { it.local }
+    val favoriteSongs: List<Station> get() = favorites.filter { it.local }
+
     var localFiles by mutableStateOf<List<Station>>(emptyList())
     var localScanning by mutableStateOf(false)
     var localScanned by mutableStateOf(false)
@@ -80,7 +141,7 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
         scope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
-                    RadioBrowser.countries().map { c ->
+                    RadioBrowser.countries(settings.homeCountry).map { c ->
                         val extra = CuratedStations.forCountry(appContext, c.code).size
                         if (extra > 0) c.copy(stationCount = c.stationCount + extra) else c
                     }
@@ -141,6 +202,12 @@ class AppModel(context: Context, private val scope: CoroutineScope) {
                 .onFailure { searchResults = emptyList() }
             searching = false
         }
+    }
+
+    /** Pin [code] first in the country grid, without reloading the directory. */
+    fun setHomeCountry(code: String) {
+        settings.updateHomeCountry(code)
+        countries = RadioBrowser.sortCountries(countries, code)
     }
 
     fun isFavorite(id: String?) = id != null && favorites.any { it.id == id }

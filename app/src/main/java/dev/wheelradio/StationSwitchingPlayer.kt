@@ -4,6 +4,8 @@ import android.os.SystemClock
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.util.Util
 
 /**
  * Wraps ExoPlayer so that "next/previous" always means "next/previous station":
@@ -32,10 +34,14 @@ class StationSwitchingPlayer(
     override fun seekToPrevious() = skip(-1, "seekToPrevious")
     override fun seekToPreviousMediaItem() = skip(-1, "seekToPreviousMediaItem")
 
-    fun perform(action: WheelAction) = when (action) {
-        WheelAction.NEXT -> seekToNext()
-        WheelAction.PREVIOUS -> seekToPrevious()
-        WheelAction.PLAY_PAUSE -> if (isPlaying) pause() else play()
+    @androidx.annotation.OptIn(UnstableApi::class)
+    fun perform(action: WheelAction) {
+        when (action) {
+            WheelAction.NEXT -> seekToNext()
+            WheelAction.PREVIOUS -> seekToPrevious()
+            // Prepares an idle player too (after a failed station, or with auto-play off), where play() alone did nothing.
+            WheelAction.PLAY_PAUSE -> Util.handlePlayPauseButtonAction(this)
+        }
     }
 
     private fun skip(direction: Int, via: String) {

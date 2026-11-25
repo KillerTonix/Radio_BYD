@@ -158,7 +158,7 @@ class RadioServicePlaybackTest {
         assertThat(svc.index).isEqualTo(0)
         assertThat(svc.state).isEqualTo(Player.STATE_IDLE)
         assertThat(svc.onMain { it.playerError }).isNotNull()
-        assertThat(svc.status).isEqualTo(StreamRecovery.STATUS_UNAVAILABLE)
+        assertThat(svc.status).isEqualTo(appString(R.string.status_unavailable))
 
         // Recovers as soon as the user picks a working station.
         svc.playQueue(listOf(ok1), 0)
@@ -183,7 +183,7 @@ class RadioServicePlaybackTest {
             Thread.sleep(60_000)
             assertThat(svc.index).isEqualTo(0)
             assertThat(radioPrefs.getInt("last_index", -1)).isEqualTo(0)
-            assertThat(svc.status).isEqualTo(StreamRecovery.STATUS_NO_NETWORK)
+            assertThat(svc.status).isEqualTo(appString(R.string.status_no_network))
         } finally {
             FakeStreamServer.outage = false
             shell(auto, "svc wifi enable")

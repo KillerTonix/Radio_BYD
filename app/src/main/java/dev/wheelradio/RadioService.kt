@@ -14,6 +14,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.datasource.DataSourceBitmapLoader
+import androidx.media3.session.CacheBitmapLoader
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.google.common.util.concurrent.Futures
@@ -31,6 +33,7 @@ class RadioService : MediaSessionService() {
     private lateinit var network: NetworkMonitor
     private lateinit var recovery: StreamRecovery
 
+    @OptIn(UnstableApi::class) // setBitmapLoader, CacheBitmapLoader, DataSourceBitmapLoader
     override fun onCreate() {
         super.onCreate()
         val repo = StationRepository(this)
@@ -56,7 +59,12 @@ class RadioService : MediaSessionService() {
         )
         // Retries, skips, the no-audio watchdog and the offline wait (see StreamRecovery). Its status line
         // travels to the UI in the session extras.
-        recovery = StreamRecovery(exo, handler, isOnline = { network.isOnline() }) { status ->
+        recovery = StreamRecovery(
+            exo, handler,
+            isOnline = { network.isOnline() },
+            resources = { AppSettings.localizedResources(this) },
+            firstAudioTimeoutMs = { AppSettings.firstAudioTimeoutMs(this) },
+        ) { status ->
             session?.setSessionExtras(Bundle().apply { putString(StreamRecovery.EXTRA_STATUS, status) })
         }
         network = NetworkMonitor(this, handler) { recovery.onNetworkBack() }
@@ -74,8 +82,17 @@ class RadioService : MediaSessionService() {
                 if (isPlaying) BluetoothBridge.active = false // our player is the source again
             }
         })
-        exo.prepare()
-        exo.playWhenReady = true // resume the last station when the app starts, like a car radio
+        // Resume the last station when the app starts, like a car radio, unless the user turned that off. Without
+        // auto-play the player stays idle (no network use); Play, Next and Previous prepare it on demand.
+        // When the driver last listened to the phone over Bluetooth, starting the radio would take the car's audio
+        // focus and pause the phone (seen in the car), so Bluetooth stays the source instead.
+        if (BluetoothBridge.wasActive(this)) {
+            KeyLog.add("Player", "Bluetooth was the last source: not starting the radio")
+            BluetoothBridge.start(this)
+        } else if (AppSettings.autoplay(this)) {
+            exo.prepare()
+            exo.playWhenReady = true
+        }
 
         // Play on an idle player and Next / Previous (from the UI, the session or the wheel) come through here.
         val player = StationSwitchingPlayer(exo, onUserRetry = recovery::onUserRetry)
@@ -84,6 +101,12 @@ class RadioService : MediaSessionService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         session = MediaSession.Builder(this, player)
+            // Media3's default loader, plus the Android 10 SystemUI artwork guard.
+            .setBitmapLoader(
+                CacheBitmapLoader(
+                    SystemUiSafeBitmapLoader(DataSourceBitmapLoader(this), SystemUiSafeBitmapLoader.systemUiArtworkSize(this))
+                )
+            )
             .setSessionActivity(openApp)
             .setCallback(object : MediaSession.Callback {
                 // Items sent from the UI arrive without their URI; restore it from requestMetadata.
@@ -117,6 +140,14 @@ class RadioService : MediaSessionService() {
                         return true
                     }
                     KeyLog.add("Session", name)
+                    // While Bluetooth is the source, the wheel controls the phone, never the radio.
+                    val btAction = when (event.keyCode) {
+                        KeyEvent.KEYCODE_MEDIA_NEXT -> WheelAction.NEXT
+                        KeyEvent.KEYCODE_MEDIA_PREVIOUS -> WheelAction.PREVIOUS
+                        KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> WheelAction.PLAY_PAUSE
+                        else -> null
+                    }
+                    if (btAction != null && BluetoothBridge.handle(btAction)) return true
                     return when (event.keyCode) {
                         // Media3 maps a PLAY_PAUSE / HEADSETHOOK double-tap to "next". On a steering wheel a quick
                         // double press, a bouncing switch or one press delivered twice must never change the station.

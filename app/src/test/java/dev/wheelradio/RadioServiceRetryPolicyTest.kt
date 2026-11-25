@@ -207,20 +207,20 @@ class RadioServiceRetryPolicyTest {
         startService(queueSize = 1)
         runUntil(5_000) { player.playerError != null }
         assertThat(status()).isEqualTo("Can't reach the station – retrying (1/3)…")
-        runUntil(40_000) { status() == StreamRecovery.STATUS_UNAVAILABLE }
-        assertThat(status()).isEqualTo(StreamRecovery.STATUS_UNAVAILABLE)
+        runUntil(40_000) { status() == context.getString(R.string.status_unavailable) }
+        assertThat(status()).isEqualTo(context.getString(R.string.status_unavailable))
         assertThat(errorLines()).hasSize(4)
     }
 
     /** Regression: Play after "unavailable" used to make one attempt only, because the retry count was never reset. */
     @Test fun play_on_a_failed_station_gets_a_fresh_set_of_retries() {
         startService(queueSize = 1)
-        runUntil(40_000) { status() == StreamRecovery.STATUS_UNAVAILABLE }
+        runUntil(40_000) { status() == context.getString(R.string.status_unavailable) }
         assertThat(errorLines()).hasSize(4)
 
         player.prepare() // what Play does on an idle player (MainActivity and the session's play/pause handling)
         assertThat(status()).isEmpty()
-        runUntil(40_000) { errorLines().size >= 8 && status() == StreamRecovery.STATUS_UNAVAILABLE }
+        runUntil(40_000) { errorLines().size >= 8 && status() == context.getString(R.string.status_unavailable) }
         assertThat(errorLines()).hasSize(8) // 1 attempt + 3 retries again
     }
 
@@ -229,7 +229,31 @@ class RadioServiceRetryPolicyTest {
         controller = Robolectric.buildService(RadioService::class.java).create()
         player = sessionPlayer(controller.get())
         runUntil(10_000) { status().isNotEmpty() }
-        assertThat(status()).isEqualTo(StreamRecovery.STATUS_NO_NETWORK)
+        assertThat(status()).isEqualTo(context.getString(R.string.status_no_network))
+    }
+
+    @Test fun with_auto_play_off_the_service_waits_for_the_driver() {
+        AppSettings(context).updateAutoplay(false)
+        startService(queueSize = 3, lastIndex = 1)
+        runUntil(2_000) { false }
+        assertThat(player.playbackState).isEqualTo(Player.STATE_IDLE) // not even connecting: no data used
+        assertThat(player.playWhenReady).isFalse()
+        assertThat(player.currentMediaItemIndex).isEqualTo(1) // the last station is still the current one
+
+        // A wheel press (or Play) starts it.
+        player.seekToNext()
+        assertThat(player.currentMediaItemIndex).isEqualTo(2)
+        assertThat(player.playWhenReady).isTrue()
+        assertThat(player.playbackState).isNotEqualTo(Player.STATE_IDLE)
+    }
+
+    @Test fun status_line_is_in_the_app_language() {
+        AppSettings(context).updateLanguage(Language.RU)
+        StationRepository(context).queue = listOf(Station("net:0", "Net 0", "http://127.0.0.1:9/qa.mp3"))
+        controller = Robolectric.buildService(RadioService::class.java).create()
+        player = sessionPlayer(controller.get())
+        runUntil(10_000) { status().isNotEmpty() }
+        assertThat(status()).isEqualTo(AppSettings.localizedResources(context, Language.RU).getString(R.string.status_no_network))
     }
 
     /**
@@ -237,7 +261,16 @@ class RadioServiceRetryPolicyTest {
      * The watchdog gives each attempt 20 s, retries once, then skips. A local socket that never replies stands
      * in for the dead host (hermetic); Robolectric's fake clock makes the 40+ s run in a few seconds.
      */
-    @Test fun station_that_never_answers_is_skipped_after_the_no_audio_watchdog() {
+    @Test fun station_that_never_answers_is_skipped_after_the_no_audio_watchdog() =
+        neverAnsweringStationIsSkipped(weakCoverage = false)
+
+    /** Weak-coverage mode gives each attempt 40 s instead of 20 s. */
+    @Test fun weak_coverage_mode_waits_twice_as_long_before_giving_up() =
+        neverAnsweringStationIsSkipped(weakCoverage = true)
+
+    private fun neverAnsweringStationIsSkipped(weakCoverage: Boolean) {
+        AppSettings(context).updateWeakCoverage(weakCoverage)
+        val perAttemptMs = if (weakCoverage) 40_000L else 20_000L
         val blackHole = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
         val held = mutableListOf<Socket>()
         val acceptor = thread(isDaemon = true) {
@@ -251,12 +284,12 @@ class RadioServiceRetryPolicyTest {
             controller = Robolectric.buildService(RadioService::class.java).create()
             player = sessionPlayer(controller.get())
 
-            val elapsed = runUntil(70_000) { player.currentMediaItemIndex == 1 }
+            val elapsed = runUntil(3 * perAttemptMs + 10_000) { player.currentMediaItemIndex == 1 }
             assertWithMessage("silent station was never skipped").that(player.currentMediaItemIndex).isEqualTo(1)
             val log = KeyLog.entries.value.takeWhile { it != logBefore }
-            assertThat(log.count { "[Player] no audio after 20 s" in it }).isEqualTo(2) // first attempt + 1 retry
-            assertThat(elapsed).isAtLeast(40_000L)
-            assertThat(elapsed).isLessThan(60_000L) // was about 9 minutes
+            assertThat(log.count { "[Player] no audio after ${perAttemptMs / 1000} s" in it }).isEqualTo(2) // first attempt + 1 retry
+            assertThat(elapsed).isAtLeast(2 * perAttemptMs)
+            assertThat(elapsed).isLessThan(3 * perAttemptMs) // was about 9 minutes
         } finally {
             blackHole.close()
             synchronized(held) { held.forEach { runCatching { it.close() } } }

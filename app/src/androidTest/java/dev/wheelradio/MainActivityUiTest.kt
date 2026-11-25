@@ -34,7 +34,7 @@ annotation class SeededFavorites
 /**
  * Compose UI on the 1920x1080 landscape head-unit screen. Only flows that need no network:
  * tabs, Favorites (seeded through radio.xml before launch), search filtering on Favorites with a
- * single character (no Radio Browser request), Local & USB, Bluetooth, Key log.
+ * single character (no Radio Browser request), Music (local & USB), Bluetooth, Settings and the key log.
  *
  * There are no testTags in the app, so nodes are found by the texts / contentDescriptions mapped in
  * test-results/exploration-report.md (tab labels are rendered upper-case).
@@ -68,17 +68,17 @@ class MainActivityUiTest {
     private fun favoriteIds() = Station.listFromJson(radioPrefs.getString("favorites", null)).map { it.id }
 
     @Test fun starts_on_by_countries_with_four_tabs_and_top_bar() {
-        tab("BY COUNTRIES").assertIsDisplayed().assertIsSelected()
-        listOf("FAVORITES", "LOCAL & USB", "BLUETOOTH").forEach { tab(it).assertIsDisplayed().assertIsNotSelected() }
+        tab("RADIO").assertIsDisplayed().assertIsSelected()
+        listOf("FAVORITES", "MUSIC", "BLUETOOTH").forEach { tab(it).assertIsDisplayed().assertIsNotSelected() }
         compose.onNodeWithText("Search stations, countries, files…").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Key log").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Settings").assertIsDisplayed()
         compose.onNodeWithContentDescription("Next").assertIsDisplayed()
         compose.onNodeWithContentDescription("Previous").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Favorite").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Add to favorites").assertIsDisplayed() // mini player heart
     }
 
     @Test fun tapping_each_tab_moves_the_selection() {
-        val tabs = listOf("BY COUNTRIES", "FAVORITES", "LOCAL & USB", "BLUETOOTH")
+        val tabs = listOf("RADIO", "FAVORITES", "MUSIC", "BLUETOOTH")
         for (t in tabs.drop(1) + tabs.first()) {
             tab(t).performClick()
             tab(t).assertIsSelected()
@@ -116,8 +116,8 @@ class MainActivityUiTest {
         assertThat(favoriteIds()).containsExactly("qa:fav:beta")
 
         compose.activityRule.scenario.recreate()
-        tab("BY COUNTRIES").assertIsSelected() // a new AppModel starts on the first tab
-        tab("FAVORITES").performClick()
+        tab("FAVORITES").assertIsSelected() // the last open tab is remembered across restarts
+        tab("RADIO").assertIsNotSelected()
         compose.onNodeWithText("QA Fav Beta").assertIsDisplayed()
         compose.onNodeWithText("QA Fav Alpha").assertDoesNotExist()
     }
@@ -148,7 +148,7 @@ class MainActivityUiTest {
     @Test fun key_log_dialog_shows_entries_and_closes() {
         val marker = "ui-test marker ${System.nanoTime()}"
         KeyLog.add("QA", marker)
-        compose.onNodeWithContentDescription("Key log").performClick()
+        compose.openKeyLog()
 
         compose.onNodeWithText("Wheel button log").assertIsDisplayed()
         compose.onNodeWithText("Press the wheel buttons; each press shows up here.").assertIsDisplayed()
@@ -156,32 +156,32 @@ class MainActivityUiTest {
 
         compose.onNodeWithText("Close").performClick()
         compose.onNodeWithText("Wheel button log").assertDoesNotExist()
-        tab("BY COUNTRIES").assertIsSelected()
+        tab("RADIO").assertIsSelected()
     }
 
     @Test fun key_log_dialog_closes_with_system_back() {
-        compose.onNodeWithContentDescription("Key log").performClick()
+        compose.openKeyLog()
         compose.onNodeWithText("Wheel button log").assertIsDisplayed()
         UiDevice.getInstance(instrumentation).pressBack()
         compose.waitUntil(5_000) {
             compose.onAllNodes(hasText("Wheel button log")).fetchSemanticsNodes().isEmpty()
         }
-        tab("BY COUNTRIES").assertIsDisplayed() // the app stays open
+        tab("RADIO").assertIsDisplayed() // the app stays open
     }
 
     @Test fun key_log_closes_with_a_tap_outside_but_not_on_the_panel() {
-        compose.onNodeWithContentDescription("Key log").performClick()
+        compose.openKeyLog()
         compose.onNodeWithText("Wheel button log").performClick() // tap inside the panel
         compose.onNodeWithText("Wheel button log").assertIsDisplayed()
         UiDevice.getInstance(instrumentation).click(40, 300) // scrim, left of the centred panel
         compose.waitUntil(5_000) {
             compose.onAllNodes(hasText("Wheel button log")).fetchSemanticsNodes().isEmpty()
         }
-        tab("BY COUNTRIES").assertIsDisplayed()
+        tab("RADIO").assertIsDisplayed()
     }
 
     @Test fun local_tab_with_permission_lists_what_media_store_has() {
-        tab("LOCAL & USB").performClick()
+        tab("MUSIC").performClick()
         compose.onNodeWithText("Rescan device & USB").assertIsDisplayed()
         compose.onNodeWithText("Allow access to music").assertDoesNotExist()
 
@@ -219,7 +219,7 @@ class MainActivityUiTest {
                 compose.activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
             }
             compose.waitForIdle()
-            listOf("BY COUNTRIES", "FAVORITES", "LOCAL & USB", "BLUETOOTH").forEach { tab(it).assertIsDisplayed() }
+            listOf("RADIO", "FAVORITES", "MUSIC", "BLUETOOTH").forEach { tab(it).assertIsDisplayed() }
             tab("FAVORITES").performClick()
             compose.onNodeWithText("QA Fav Alpha").assertIsDisplayed()
             compose.onNode(hasContentDescription("Remove from favorites") and hasAnyAncestor(hasText("QA Fav Beta")))

@@ -45,7 +45,7 @@ class PlaybackStatusUiTest {
         waitForText("QA Dead 404 7", 10_000)
         waitForText("retrying (1/3)", 10_000)
         // 404s fail fast: about 2 + 4 + 6 s of back-off before giving up.
-        waitForText(StreamRecovery.STATUS_UNAVAILABLE, 45_000)
+        waitForText(appString(R.string.status_unavailable), 45_000)
         assertThat(svc.isPlaying).isFalse()
 
         // Play on the failed station starts a fresh attempt (it used to do nothing visible).

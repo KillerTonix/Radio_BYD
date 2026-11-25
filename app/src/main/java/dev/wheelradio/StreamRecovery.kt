@@ -1,5 +1,6 @@
 package dev.wheelradio
 
+import android.content.res.Resources
 import android.os.Handler
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -9,18 +10,23 @@ import androidx.media3.common.Player
  *
  *  - **Error, network up:** retry the same station with back-off (2 s, 4 s, 6 s), then skip to the next one.
  *  - **Error, no network** (tunnel, car park): keep the station and wait; retry it when the network returns (bug U7).
- *  - **No audio within [FIRST_AUDIO_TIMEOUT_MS]:** a host that never answers used to sit on "Connecting…" for about
+ *  - **No audio within [firstAudioTimeoutMs]** (20 s, or 40 s in weak-coverage mode): a host that never answers used to sit on "Connecting…" for about
  *    9 minutes (8 s connect timeout × every resolved address × ExoPlayer's internal retries × our retries). The
  *    watchdog counts that as a failure, with one retry, because each attempt already cost the driver 20 s.
  *  - **The user presses Play / Next / Previous:** pending retries are dropped and the new attempt starts at once.
  *
- * Every state change is reported through [onStatus] as a short line for the mini player ("" = nothing to show).
+ * Every state change is reported through [onStatus] as a short line for the mini player ("" = nothing to show),
+ * written in the app's language from [resources].
  * Must be used on the player's (main) thread.
  */
 class StreamRecovery(
     private val player: Player,
     private val handler: Handler,
     private val isOnline: () -> Boolean,
+    /** Resources in the app's chosen language; read on each use, so a language change applies to the next line. */
+    private val resources: () -> Resources,
+    /** How long a station may take to start playing; read on each attempt, so the setting applies at once. */
+    private val firstAudioTimeoutMs: () -> Long = { AppSettings.FIRST_AUDIO_TIMEOUT_MS },
     private val onStatus: (String) -> Unit,
 ) {
     private var retries = 0
@@ -30,13 +36,19 @@ class StreamRecovery(
     /** False from each (re)start of a station until it first reaches READY; the watchdog only runs in that window. */
     private var gotAudio = false
     private val watchdog = Runnable { onNoAudio() }
+    private var watchdogMs = 0L
     private var watchdogArmed = false
 
     val listener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) = reset()
 
         override fun onPlayerError(error: PlaybackException) {
-            KeyLog.add("Player", "error: ${error.errorCodeName}")
+            // Name the station and the server's answer, so a car key log says which URL needs fixing.
+            val http = generateSequence<Throwable>(error) { it.cause }
+                .filterIsInstance<androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException>()
+                .firstOrNull()?.let { " HTTP ${it.responseCode}" }.orEmpty()
+            val station = player.currentMediaItem?.mediaMetadata?.title?.let { " on \"$it\"" }.orEmpty()
+            KeyLog.add("Player", "error: ${error.errorCodeName}$http$station")
             handleFailure(stalled = false)
         }
 
@@ -89,7 +101,7 @@ class StreamRecovery(
 
     private fun onNoAudio() {
         watchdogArmed = false
-        KeyLog.add("Player", "no audio after ${FIRST_AUDIO_TIMEOUT_MS / 1000} s")
+        KeyLog.add("Player", "no audio after ${watchdogMs / 1000} s")
         player.stop() // abandon the hanging connection; the queue and position are kept
         handleFailure(stalled = true)
     }
@@ -107,7 +119,7 @@ class StreamRecovery(
             waitingForNetwork = true
             retries = 0
             KeyLog.add("Player", "offline, keeping the station until the network returns")
-            onStatus(STATUS_NO_NETWORK)
+            onStatus(resources().getString(R.string.status_no_network))
             return
         }
         val maxRetries = if (stalled) STALL_RETRIES else ERROR_RETRIES
@@ -115,7 +127,7 @@ class StreamRecovery(
             retries < maxRetries -> {
                 // Mobile data in a moving car drops out; retry with back-off.
                 retries++
-                onStatus("Can't reach the station – retrying ($retries/$maxRetries)…")
+                onStatus(resources().getString(R.string.status_retrying, retries, maxRetries))
                 val retry = Runnable {
                     pendingRetry = null
                     player.prepare()
@@ -131,7 +143,7 @@ class StreamRecovery(
             }
             else -> {
                 retries = 0
-                onStatus(STATUS_UNAVAILABLE)
+                onStatus(resources().getString(R.string.status_unavailable))
             }
         }
     }
@@ -144,7 +156,8 @@ class StreamRecovery(
     private fun armWatchdog() {
         if (watchdogArmed) return
         watchdogArmed = true
-        handler.postDelayed(watchdog, FIRST_AUDIO_TIMEOUT_MS)
+        watchdogMs = firstAudioTimeoutMs()
+        handler.postDelayed(watchdog, watchdogMs)
     }
 
     private fun disarmWatchdog() {
@@ -153,11 +166,8 @@ class StreamRecovery(
     }
 
     companion object {
-        const val FIRST_AUDIO_TIMEOUT_MS = 20_000L
         const val ERROR_RETRIES = 3
         const val STALL_RETRIES = 1
-        const val STATUS_NO_NETWORK = "No internet – the station resumes when it's back"
-        const val STATUS_UNAVAILABLE = "Station unavailable – press Play to try again"
 
         /** Session-extras key that carries the status line to the UI. */
         const val EXTRA_STATUS = "dev.wheelradio.status"

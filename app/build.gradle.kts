@@ -12,8 +12,8 @@ android {
         applicationId = "dev.wheelradio"
         minSdk = 29 // Android 10, as on the BYD Yuan Plus / Atto 3 DiLink head unit
         targetSdk = 34
-        versionCode = 9
-        versionName = "0.5.2"
+        versionCode = 11
+        versionName = "0.5.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -76,4 +76,24 @@ dependencies {
     androidTestImplementation(libs.androidx.test.uiautomator)
     androidTestImplementation(libs.truth)
     androidTestImplementation(libs.okhttp.mockwebserver)
+}
+
+// Robolectric normally downloads its Android jar from Maven Central at test time, on every fresh CI runner, with no
+// retry; a failed download fails every unit test. Let Gradle fetch it instead (retried, and cached by
+// gradle/actions/setup-gradle between runs) and run Robolectric offline from that copy.
+// The version must match the Robolectric release and `sdk=` in src/test/resources/robolectric.properties
+// (Robolectric 4.13 + SDK 34 = 14-robolectric-10818077-i6); a mismatch fails fast with "Unable to locate dependency".
+val robolectricAndroidAll: Configuration by configurations.creating
+dependencies {
+    robolectricAndroidAll("org.robolectric:android-all-instrumented:14-robolectric-10818077-i6")
+}
+val robolectricJarsDir = layout.buildDirectory.dir("robolectric-jars")
+val copyRobolectricJars = tasks.register<Copy>("copyRobolectricJars") {
+    from(robolectricAndroidAll)
+    into(robolectricJarsDir)
+}
+tasks.withType<Test>().configureEach {
+    dependsOn(copyRobolectricJars)
+    systemProperty("robolectric.offline", "true")
+    systemProperty("robolectric.dependency.dir", robolectricJarsDir.get().asFile.absolutePath)
 }

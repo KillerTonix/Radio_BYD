@@ -74,6 +74,7 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
   - **Evidence:** `test-results/audio-session-report.md` section 4.
 
 ## [UI] Mini-player favorite button contentDescription does not reflect state
+- **Status: FIXED on branch `fix/failure-handling`.** The mini player's heart now reads `Add to favorites` / `Remove from favorites`, the same as the list hearts. Test: `androidTest/MiniPlayerAndShuffleTest.mini_player_heart_exposes_its_state` (no longer `@Ignore`d, passes; toggles both ways). Tests that selected the old `Favorite` label were updated.
 - **Severity:** Low (accessibility / testability)
 - **Steps:** play any station → tap the mini-player heart → inspect the node.
 - **Expected:** `Add to favorites` / `Remove from favorites` (as in the list rows), or a stateDescription.
@@ -171,6 +172,10 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 - **Evidence:** `14:43:30.070 error` → `14:43:30.378 [Player] seekToNext` → `Հանրային ռադիո` state 6 at +1.8 s, state 3 at +2.7 s.
 
 ## [AUDIO] BYD APP_REV_DATA frames with an unexpected payload are dropped without any KeyLog entry
+- **Status: FIXED on branch `fix/failure-handling`.** `BydWheelKeyReceiver` now logs every payload that is not a `byte[] [4, 1, code]` wheel-key frame as `[BYD] unrecognised: …`, with its type and contents (`byte[]` hex, `int[]`, `long[]`, `String`, other, or the extra names when there is no `list` extra). It still never acts on them.
+  - **Flood protection:** the head unit may broadcast other data constantly, so each distinct payload is logged once, up to 50, then a single "not logging any further ones" line. Wheel-key frames are always logged, so they can't be pushed out of the 100-line key log.
+  - **Manual check:** step 2's `am broadcast -a APP_REV_DATA` commands (`--eia`, `--ela`, `--es`, `--ei`, no `list`) now each show one line in the key log; a repeated `int[]` frame is not logged twice; no station change.
+  - **Tests:** `test/BydWheelKeyReceiverTest.every_app_rev_data_frame_is_logged` (no longer `@Ignore`d, passes), plus new tests for de-duplication and the 50-payload cap with a wheel key after it. The three tests that asserted "ignored silently" now expect a single log line and no action.
 - **Severity:** Low (diagnostics)
 - **Steps:** `adb shell am broadcast -a APP_REV_DATA --eia list 4,1,3` (also `--ela`, `--es`, `--ei`, a short `4,1`, wrong group `5,1,3`).
 - **Expected:** per the class comment ("every frame is logged to KeyLog"), each received broadcast shows up in the Key log, so the real BYD format can be learned in the car.
@@ -197,13 +202,13 @@ Device: emulator-5554, API 29, 1920x1080 @160dpi (portrait = `user_rotation 1`).
 | Bug | Test | Observed failure when un-ignored |
 |---|---|---|
 | U7 offline queue walk (**fixed**, test now enabled) | `androidTest/RadioServicePlaybackTest.offline_outage_does_not_walk_through_the_queue` (Wi-Fi + data off via `svc`, local fake stream refusing connections, 60 s) | Failed with `expected: 0 but was: 1` before the fix; passes on `fix/playback-bugs`. |
-| U8 mini-player heart description | `androidTest/MiniPlayerAndShuffleTest.mini_player_heart_exposes_its_state` | no node `Remove from favorites` after hearting; the description stays `Favorite` |
+| U8 mini-player heart description (**fixed**, test now enabled) | `androidTest/MiniPlayerAndShuffleTest.mini_player_heart_exposes_its_state` | Failed with no node `Remove from favorites` (label stayed `Favorite`) before the fix; passes on `fix/failure-handling`. |
 | [AUDIO] Double Play/Pause skips (**fixed**, test now enabled) | `androidTest/WheelKeyRouteTest.double_play_pause_never_switches_station` | Failed with `expected: qa:ok:1 but was: qa:ok:2` before the fix; passes on `fix/playback-bugs`. |
 | [AUDIO] CHANNEL_UP/DOWN with key log open (**fixed**, test now enabled) | `WheelKeyRouteTest.channel_up_switches_station_while_key_log_dialog_is_open` | Failed with no switch within 5 s before the fix; passes on `fix/playback-bugs`. |
 | [AUDIO] CHANNEL_UP/DOWN in background (**platform limit**, stays ignored) | `WheelKeyRouteTest.channel_up_switches_station_with_the_app_in_background` | No switch within 5 s; Android never routes these keys to a background app. |
 | [AUDIO] Hold repeats skip in background (**fixed**, test now enabled) | `WheelKeyRouteTest.holding_media_next_in_background_switches_one_station` | Failed with `expected: 1 but was: 2` before the fix; passes on `fix/playback-bugs`. |
 | [AUDIO] Next during back-off waits for stale timer (**fixed**, test now enabled) | `test/RadioServiceRetryPolicyTest.next_during_error_back_off_starts_the_new_station_immediately` (Robolectric, fake clock) | Failed with `playbackState` staying `STATE_IDLE` (1) after `seekToNext()` before the fix; passes on `fix/failure-handling`. |
-| [AUDIO] APP_REV_DATA frames dropped without KeyLog | `test/BydWheelKeyReceiverTest.every_app_rev_data_frame_is_logged` | 0 KeyLog lines for an `int[]` frame and a group-5 frame (expected 2) |
+| [AUDIO] APP_REV_DATA frames dropped without KeyLog (**fixed**, test now enabled) | `test/BydWheelKeyReceiverTest.every_app_rev_data_frame_is_logged` | Failed with 0 KeyLog lines for an `int[]` and a group-5 frame (expected 2) before the fix; passes on `fix/failure-handling`. |
 
 Not covered by an automated test:
 - U1–U6 and U9 need the live Radio Browser directory. `RadioBrowser` is an `object` with hard-coded hosts, so it cannot be stubbed without a production seam.
@@ -211,3 +216,82 @@ Not covered by an automated test:
 - Dead curated URLs are content: they are checked by the network probe in step 2, never in tests.
 
 Positive path verified for the first time: a real `byte[]` `APP_REV_DATA` frame `[4,1,0x03]` switches exactly one station, both in Robolectric (`RadioServiceRetryPolicyTest.byd_next_frame_switches_the_service_player_once`) and on the emulator through an in-process `sendBroadcast` (`WheelKeyRouteTest.byd_app_rev_data_next_frame_switches_one_station`).
+
+## [AUDIO] "System UI keeps stopping" while a station with a 320 px wide logo plays — FIXED
+- **Severity:** High (on a 1920x1080 Android 10 head unit the system UI crash-loops for as long as the station is the active media session).
+- **Steps:** on `BYD_DiLink_API29` (1920x1080), play Radio Marshall (Armenia, logo `radiomarshall.am/images/logo.png`, 320x87).
+- **Expected:** the station plays; the system UI is unaffected.
+- **Actual:** "System UI keeps stopping" about every 3 s. `logcat -b crash`: `IllegalArgumentException: cannot use a recycled source in createBitmap` at `com.android.systemui.statusbar.MediaArtworkProcessor.processArtwork(MediaArtworkProcessor.kt:54)`.
+- **Cause:** an Android 10 SystemUI bug. It scales session artwork so the longer side is `max(screenW, screenH) / 6` (320 px here). When the artwork already has that size, `createScaledBitmap` returns the artwork itself, SystemUI recycles it, and the next pass crashes. Any station logo with a longer side of exactly 320 px triggers it.
+- **Fix:** `SystemUiSafeBitmapLoader` (session bitmap loader) scales such artwork up by 1 px, so SystemUI always works on a copy. Verified on the emulator: 0 SystemUI crashes in 45 s with Radio Marshall playing (about 15 before). Unit tests: `SystemUiSafeBitmapLoaderTest`.
+
+## [AUDIO] Bluetooth tab shows "Nothing playing" while the car's Bluetooth Music plays the phone (BYD Yuan Plus)
+- **Severity:** High (the Bluetooth tab and wheel-to-Bluetooth routing don't work on the real car).
+- **Steps:** on a BYD Yuan Plus (DiLink, Android 10), play music from a phone through the car's own Bluetooth Music app, then open Wheel Radio → Bluetooth.
+- **Expected:** the phone's song (title, artist, art) with working play / pause / next / previous.
+- **Actual:** "From your phone · Bluetooth (AVRCP)", "Nothing playing". "Open the car's Bluetooth music" offered `BT Phone · com.byd.bluetoothcall`.
+- **Cause:** the AOSP AVRCP controller service (`com.android.bluetooth`) accepts the connection on DiLink but stays empty, because BYD's own app plays Bluetooth. `BluetoothBridge` stopped there and never looked at other media sessions. The car-app finder scored "bluetooth" in `bluetoothcall` as a match and kept one activity per package.
+- **Fix (0.5.3, still to be confirmed in the car):** `BluetoothBridge` watches the AVRCP service and every other app's media session at once and follows the one that is playing (or has a song). The tab asks for notification access when that is what hides the sessions. The finder drops call / phone apps, prefers "Bluetooth Music", and keeps separate activities. Unit test: `CarBluetoothAppTest`.
+- **Evidence still needed:** the key log's `[BT] media sessions: …` and `[BT] using …` lines from the car.
+- **Car test, 2026-11-24 (build 0.5.2, before the fix; key-log text `connected to AVRCP controller service` and BT Phone listed first):** the tab said "Nothing playing". Opening **Media Center (`com.byd.mediacenter`)** from the list switched the car to its Bluetooth source, and back in Wheel Radio the **AVRCP** source showed the song ("Perpetual Motion · LukHash · Better Than Reality") with working controls and "Wheel buttons control Bluetooth music". So the AVRCP service is not always empty on DiLink. It fills once Media Center makes Bluetooth the active source. Kuwo (`cn.kuwo.kwmusiccar`) and KuGou (`com.kugou.android.auto`) are online-music apps, not Bluetooth players.
+- **Follow-up for 0.5.3:** `carAppScore` gave Media Center, Kuwo and KuGou the same score (2, "music"/"media"), so the order followed the launcher and Kuwo could come first. **Fixed:** `com.byd.mediacenter` / "Media Center" now scores 0 (`CarBluetoothAppTest.byd_media_center_comes_before_online_music_apps`).
+- **Also reported from the car (0.5.2):** the bottom bar kept showing the paused radio station while Bluetooth played, the big player never showed Bluetooth, and there was no cover art (only "BT"). **Fixed in 0.5.3:** the mini player and big player follow Bluetooth whenever it is the chosen source (`BluetoothBridge.inUse`), with a source icon (radio / music / Bluetooth) in front of the title. For covers, Android 10's AVRCP controller has no cover art (cover art arrived in Android 11), so `BluetoothBridge` now uses any picture or picture link in the session and otherwise takes the cover from another app's session playing the same title (e.g. Media Center, with notification access). It logs `[BT] song "…" from …, cover: …` for each song. Whether Media Center publishes the cover still has to be confirmed in the car.
+- **Without opening Media Center (0.5.3, still to be confirmed in the car):** Play on the Bluetooth tab, the mini player, the wheel's play key, and the app start after Bluetooth was the last source now run `BluetoothBridge.activate()`. It stops as soon as Bluetooth plays: (1) Play via the AVRCP controller, (2) Play on the car player's media session, (3) Play through the car player's MediaBrowserService, (4) only while Wheel Radio is in front: open Media Center and come back after 2 s. Each step logs `[BT] step n/4: …`, and the result is `Bluetooth plays: step n worked` or `still silent`. Settings → Show wheel button log → **Bluetooth diagnostics** logs the Bluetooth profile states, every media session (state, actions, metadata keys), every MediaBrowserService and Media Center's exported components. Verified on the emulator (no Bluetooth there): steps 1–3 report "not available", and step 4's open-and-return worked with a stand-in player, then was limited to real car Bluetooth players.
+
+## [AUDIO] Ռադիո Ջազ (am:16) fails with ERROR_CODE_IO_BAD_HTTP_STATUS on the car — fixed
+- **Severity:** Medium (one curated station; recovery retries, then skips).
+- **Steps:** BYD Yuan Plus, Radio → Armenia → Ռադիո Ջազ.
+- **Expected:** the station plays.
+- **Actual:** the mini player stays on "Connecting…"; the key log shows `[Player] error: ERROR_CODE_IO_BAD_HTTP_STATUS` (12:04:28 and 12:04:48).
+- **Evidence:** `http://am.radioaurora.am:8010/jz` from `stations_am.json`. The server answers with a non-2xx status. From the dev PC the host didn't answer at all within 10 s, so the station is down or geo-restricted. This needs a new URL; it's content, not a code fix.
+- **Fix (2026-11-24):** `https://de.auroramedia.am/jazz.mp3`, the same Aurora Media server as Ավտոռադիո and Kiss FM (200 `audio/mpeg`, 256 kbps). It is the stream of the directory's "Jazz FM 106.9 Yerevan Radio" entry, so the merge now drops that duplicate row from the Armenia list.
+
+## [AUDIO] After an app restart, the first wheel Next goes to the radio while the phone plays over Bluetooth (BYD Yuan Plus)
+- **Severity:** High (the wheel switches the car from the phone's music to a radio station).
+- **Steps:** play the phone through the car's Media Center and Wheel Radio's Bluetooth tab (wheel buttons control Bluetooth). Let Wheel Radio's process restart (seen in the car between 19:02 and 19:03:51; cause unknown, possibly a system kill while Media Center was in front). Press wheel Next.
+- **Expected:** the phone skips to the next song.
+- **Actual:** key log `19:04:01.629 [Activity] KEYCODE_MEDIA_NEXT DOWN scan=270 src=0x101` → `[Player] seekToNext`. Wheel Radio started the next radio station. At 19:04:40 the Bluetooth tab showed "Nothing playing" again.
+- **Cause:** `BluetoothBridge.active` and the chosen source live only in memory, so they reset with the process. After the restart the AVRCP service had connected (19:03:51) but reported no playing song, so `handle()` returned false and the key fell through to the radio. Starting the radio probably also took audio focus from Media Center, which pauses the phone.
+- **Evidence:** car photos of the key log, 2026-11-24 19:03:51–19:04:27. The log starts at 19:03:51 because `KeyLog` is in memory only.
+- **Fix (0.5.3, still to be confirmed in the car):** `BluetoothBridge.active` is saved (`bt_active` in the `radio` prefs) and restored on start. When Bluetooth was the last source, `RadioService` doesn't auto-play the radio (`[Player] Bluetooth was the last source: not starting the radio`). Media-button keys that reach the session go to Bluetooth while it is the source, like the activity and BYD routes. Playing any station clears the flag. The open tab was already remembered (`last_tab`). Verified on the emulator: Bluetooth tab and no auto-play after a restart with `bt_active=true`; the flag clears when the radio plays.
+
+## [AUDIO] Ավտոռադիո (am:01) returns HTTP 404 — fixed
+- **Severity:** Medium (a curated station near the top of the Armenia list; recovery retries 4 times over ~22 s, then skips).
+- **Steps:** BYD Yuan Plus, wheel Next from Հանրային ռադիո (am:00).
+- **Expected:** Ավտոռադիո plays.
+- **Actual:** `[Player] error: ERROR_CODE_IO_BAD_HTTP_STATUS` at 19:04:05, 19:04:11, 19:04:18 and 19:04:27, then `station unavailable, skipping to the next one`, landing on Իմ Ռադիո (am:02).
+- **Evidence:** `https://de.auroramedia.am/autoradio.mp3` from `stations_am.json` returns **404** from the dev PC too. The same host still serves `aurora.mp3` and `kissfm.mp3` (206), so the Avtoradio mount was renamed or removed. This needs a new URL. It is a content fix, not a code fix.
+- **Fix:** the mount is `https://de.auroramedia.am/autoradio` (no `.mp3`), which answers 206 `audio/mpeg`. Verified on the emulator: Armenia → Ավտոռադիո plays.
+- **Logging gap (fixed):** the player error line now names the station and the HTTP status, e.g. `[Player] error: ERROR_CODE_IO_BAD_HTTP_STATUS HTTP 404 on "Ավտոռադիո"`.
+
+## [AUDIO] Armenian stream check, 2026-11-24: Ռադիո Ազալիա and Ռադիո Վեմ are dead at the source
+- **Method:** every stream in `stations_am.json` (46) and every Armenian Radio Browser station not already in it (6) was read for 8 s with the player's user agent, recording the HTTP status, the content type and the bytes received.
+- **Result:** 48 of 52 streamed audio. Failures:
+  - **Ռադիո Ազալիա (am:07)** `https://stream-153.zeno.fm/s865660v7hhvv`: HTTP **401**, also through `stream.zeno.fm` and with a browser user agent. The station's other known page (radioazalia.microwav.fm) no longer resolves. No current stream found.
+  - **Ռադիո Վեմ (am:25)** `https://eu1.stream4cast.com/proxy/vemradio/stream`: HTTP **404** on eu, eu1 and eu2. vem.am's own web player uses the same URL, so the station's stream is down at the source. Re-check later before replacing it.
+  - **Ռադիո Ջազ (am:16)**: no answer from the old host. Fixed, see above.
+  - **Voice of Van (am:40)**: false alarm. It is a SHOUTcast v1 server (`ICY 200 OK`, `audio/mpeg`, 32 kbps). curl rejects that old reply without `--http0.9`, but the app plays it (verified on the emulator).
+- **Impact:** a dead station costs the driver about 22 s (4 tries) before the player skips it, every time it comes up in the list.
+- **Resolved:** am:07 and am:25 were removed from `stations_am.json` (44 stations now). The other ids keep their numbers, because favorites and the saved queue refer to stations by id. If either station comes back, add it again under a new id (am:46 and up).
+
+## [AUDIO] Car test 0.5.3 (BYD Yuan Plus, 2026-11-25): Bluetooth tab and big-player issues — fixed in 0.5.4
+- **Severity:** High (Bluetooth start and coming back to the app are unreliable in the car).
+- **Evidence:** car photos of the key log and Bluetooth diagnostics, 20:05–20:07. Phone over AVRCP: `actions=0x244037`, metadata `ALBUM,ARTIST,DURATION,GENRE,NUM_TRACKS,TITLE,TRACK_NUMBER`. Media Center (`com.byd.mediacenter`) exports no MediaBrowserService, and notification access is MISSING.
+1. **"Open settings" shows BYD's "Multimedia system does not support this operation."** DiLink refuses the system notification-access page. The connected layout's text also ended in "run this once over ADB:" without showing the command.
+   **Fix:** both layouts always show the ADB command. When `com.byd.mediacenter` is installed, the Settings button is hidden and the text says the car doesn't open that page (`bt_setup_text_adb`, EN/RU/HY).
+2. **Opening the Bluetooth tab doesn't start Bluetooth.** The tab only refreshed, and the radio kept playing.
+   **Fix:** a tap on the tab runs `BluetoothBridge.onTabOpened`: it pauses the radio and calls `activate()`. It skips this only when Bluetooth reports no phone (A2DP sink, AVRCP controller and HFP client all disconnected), so the radio isn't stopped for nothing.
+3. **Media Center sometimes had too little time** (fixed 2 s before coming back).
+   **Fix:** step 4 now returns once Bluetooth plays, but not before 3 s, and at the latest after 5 s (`timeToReturn`, `CarBluetoothAppTest`).
+4. **Sometimes Wheel Radio doesn't come back from Media Center.**
+   **Cause:** Android 10 blocks background activity starts unless the app's *own* activity started or finished in the last 10 s. Opening Media Center didn't count. The return worked only within ~10 s of opening Wheel Radio (the auto-start after launch), and silently failed for a Play pressed later. Reproduced on the emulator with a stand-in "Bluetooth Music" app and 0.5.3: Play 15 s after launch, the key log says `back to Wheel Radio`, the stand-in stays in front, and logcat shows `ActivityTaskManager: Background activity start [callingPackage: dev.wheelradio … isCallingUidForeground: false …]`.
+   **Fix:** Media Center is opened through `CarPlayerLauncher`, an invisible activity of ours that starts and finishes at once, which restarts that window. Same emulator run with 0.5.4: back after 5.1 s. The key log now also says `Android blocked the return` if it ever still happens.
+5. **Tapping the timeline doesn't seek on Bluetooth.** This is not fixable from the head unit. AVRCP has no "go to position" command, and the phone's session offers no seek or fast-forward (`0x244037` = stop, pause, play, previous, next, prepare, repeat, shuffle).
+   **Fix:** for a source without `ACTION_SEEK_TO`, the big player shows a read-only progress bar instead of a slider that jumps back (`BluetoothBridge.canSeek`, `CarBluetoothAppTest.phone_over_avrcp_cannot_seek`).
+6. **Back on the big player returns to the list, then the big player is back after 1 s.**
+   **Cause:** Back is a key, not a touch, so the idle time wasn't restarted and the 1 s idle check reopened it at once.
+   **Fix:** closing the big player restarts the idle time (`AppModel.bigPlayer`, `AppModelTest.closing_the_big_player_restarts_the_idle_time`). Emulator: the list is still shown 4 s after Back, and the big player comes back only after the full 12 s.
+7. **No cover for Bluetooth songs; Media Center shows one.** Android 10's AVRCP controller passes only text. In the car the metadata keys were `ALBUM,ARTIST,DURATION,GENRE,NUM_TRACKS,TITLE,TRACK_NUMBER`, and the key log said `cover: none`. Bluetooth cover art (AVRCP BIP) came with Android 11, and Media Center gets its covers through BYD's own stack, which apps can't reach. Borrowing the cover from Media Center's media session needs notification access, and the car has none.
+   **Fix:** when there is no other cover, `CoverSearch` looks the song up on the iTunes Search API, then Deezer (no key needed). A result counts only if title and artist match, and one from the same album wins. A cover from the phone or Media Center still replaces the online one. Settings → Playback → "Find Bluetooth song covers online" (on by default) turns it off. The key log says `cover for "…" found online (iTunes|Deezer)` or `no cover online for …`. Tests: `CoverSearchTest` (recorded response shapes, no network) and `AppSettingsTest`.
+   **Car photo, 2026-11-24:** Media Center shows the real cover for a Spotify song from a Pixel 7 Pro ("Perpetual Motion · LukHash", album *Better Than Reality*), so BYD's own Bluetooth stack does receive pictures. The iTunes lookup returns that same album cover. **Next step:** Bluetooth diagnostics now connect to Media Center's exported `com.byd.music.data.AudioDataService` (no permission). They log its interface, its methods, the fields of its data classes and callbacks (read from Media Center's own classes), and the protection level of the permission on `.main.MediaService`. On the emulator this was checked against a stand-in service. A car run shows whether Wheel Radio can take the cover straight from Media Center.
+- **Still to confirm in the car:** items 1–4 and 7. In particular, whether Media Center keeps the Bluetooth source when we come back after 3 s.

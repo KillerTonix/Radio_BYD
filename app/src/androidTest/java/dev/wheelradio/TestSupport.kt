@@ -1,5 +1,6 @@
 package dev.wheelradio
 
+import androidx.compose.ui.test.performClick
 import android.content.ComponentName
 import android.content.Context
 import android.os.Looper
@@ -26,6 +27,8 @@ fun seedPrefs(queue: List<Station>, lastIndex: Int = 0, favorites: List<Station>
         .putInt("last_index", lastIndex)
         .putString("favorites", Station.listToJson(favorites))
         .putBoolean("shuffle", false)
+        // The idle big player would cover the list during the long playback waits; BigPlayer tests turn it on.
+        .putBoolean(AppSettings.KEY_BIG_PLAYER, false)
         .commit()
 }
 
@@ -99,4 +102,13 @@ class ServiceController : AutoCloseable {
     }
 
     override fun close() = onMain { it.release() }
+}
+
+/** A string in the app's language (the emulator's, English, unless a test switched it). */
+fun appString(id: Int, vararg args: Any): String = appContext.getString(id, *args)
+
+/** The wheel-button log now lives in Settings: gear → "Show wheel button log". */
+fun androidx.compose.ui.test.SemanticsNodeInteractionsProvider.openKeyLog() {
+    onNode(androidx.compose.ui.test.hasContentDescription("Settings")).performClick()
+    onNode(androidx.compose.ui.test.hasText("Show wheel button log")).performClick()
 }

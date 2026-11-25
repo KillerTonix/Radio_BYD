@@ -28,6 +28,13 @@ class StationRepositoryTest {
         assertThat(repo.lastIndex).isEqualTo(0)
         assertThat(repo.shuffle).isFalse()
         assertThat(repo.musicFolder).isNull()
+        assertThat(repo.lastTab).isNull()
+    }
+
+    @Test fun last_tab_survives_a_new_instance() {
+        StationRepository(context).lastTab = "LOCAL"
+        assertThat(StationRepository(context).lastTab).isEqualTo("LOCAL")
+        assertThat(prefs.getString("last_tab", null)).isEqualTo("LOCAL")
     }
 
     @Test fun empty_queue_falls_back_to_bundled_stations_json() {

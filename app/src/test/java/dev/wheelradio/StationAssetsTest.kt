@@ -47,9 +47,12 @@ class StationAssetsTest {
     @Test fun stations_am_json_is_well_formed() {
         val list = load("stations_am.json")
         checkStructure("stations_am.json", list)
-        assertThat(list).hasSize(46)
-        // ids are am:00 .. am:45 in order
-        assertThat(list.map { it.id }).containsExactlyElementsIn((0 until 46).map { "am:%02d".format(it) }).inOrder()
+        assertThat(list).hasSize(44)
+        // ids are am:00 .. am:45 in order, minus the dead streams removed on 2026-11-24 (am:07 Ռադիո Ազալիա,
+        // am:25 Ռադիո Վեմ). Ids are never renumbered: favorites and the saved queue refer to stations by id.
+        val removed = setOf("am:07", "am:25")
+        assertThat(list.map { it.id })
+            .containsExactlyElementsIn((0 until 46).map { "am:%02d".format(it) }.filterNot { it in removed }).inOrder()
         assertThat(list.all { it.subtitle == "Armenia" }).isTrue()
     }
 
